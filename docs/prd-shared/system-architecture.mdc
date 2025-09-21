@@ -1,0 +1,8 @@
+# System Architecture
+
+- Flutter App (React Native → Flutter 변경)
+- Backend: Spring Boot 3.3.x (Java 17)
+- DB: MySQL 8.0 (AWS RDS)
+- Cache: Redis 7.x (AWS ElastiCache or EC2)
+- Infra: AWS EC2, Docker 배포
+- Domain + HTTPS 필수 (Let's Encrypt/ACM)

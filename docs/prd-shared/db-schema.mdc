@@ -1,0 +1,39 @@
+# DB Schema
+
+```sql
+CREATE TABLE users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  nickname VARCHAR(50),
+  points INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE call_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  call_start TIMESTAMP,
+  call_end TIMESTAMP,
+  result ENUM('SUCCESS','FAIL_NO_TALK','FAIL_SNOOZE') NOT NULL,
+  snooze_count INT DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE mission_results (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  call_log_id BIGINT NOT NULL,
+  mission_type ENUM('PUZZLE') NOT NULL,
+  success BOOLEAN NOT NULL,
+  FOREIGN KEY (call_log_id) REFERENCES call_logs(id)
+);
+
+CREATE TABLE points_history (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  change_amount INT NOT NULL,
+  reason VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```

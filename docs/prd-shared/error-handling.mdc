@@ -1,0 +1,16 @@
+# Error Handling Policy
+
+## 공통 응답 형식
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "사람이 읽을 수 있는 에러 메시지",
+  "detail": "디버깅에 참고되는 상세 메시지(optional)"
+}
+```
+
+## 주요 에러 코드
+- AUTH_401: 인증 실패
+- AUTH_403: 권한 없음
+- ALARM_404: 알람 로그 없음
+- SERVER_500: 서버 내부 오류

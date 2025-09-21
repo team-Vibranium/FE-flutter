@@ -1,0 +1,50 @@
+# API Contract
+
+## Alarm Result
+POST /alarms/result
+
+Request:
+```json
+{
+  "userId": 1,
+  "callId": 1001,
+  "result": "SUCCESS",
+  "snoozeCount": 1
+}
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "pointsAwarded": 10
+}
+```
+
+## User Signup
+POST /auth/signup
+
+```json
+{
+  "email": "test@example.com",
+  "password": "123456",
+  "nickname": "홍길동"
+}
+```
+
+## User Login
+POST /auth/login
+
+```json
+{
+  "email": "test@example.com",
+  "password": "123456"
+}
+```
+
+Response:
+```json
+{
+  "token": "jwt-token-string"
+}
+```

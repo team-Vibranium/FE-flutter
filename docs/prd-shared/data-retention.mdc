@@ -1,0 +1,6 @@
+# Data Retention Policy
+- STT 변환 텍스트: 30일 후 자동 삭제
+- Call Logs: 1년 보관
+- Mission Results: 1년 보관
+- Points History: 3년 보관
+- User 탈퇴 시: 관련 데이터 전부 즉시 삭제

@@ -1,0 +1,5 @@
+# Snooze Policy
+- 1회 Snooze: 5분 지연
+- 최대 3회 Snooze 가능
+- 총 지연 시간: 15분
+- Snooze 3회 시 자동 FAIL 처리 (0점)

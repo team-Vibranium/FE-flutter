@@ -1,0 +1,5 @@
+# Future Considerations
+
+- Admin 기능: MVP에서는 제외, 추후 필요 시 고려
+- Push 알람: Firebase FCM 사용 ❌, OS 로컬 알람만 사용. 단, 추후 공지/운영자 메시지 필요 시 고려 가능
+- Accessibility: Flutter 기본 접근성 준수

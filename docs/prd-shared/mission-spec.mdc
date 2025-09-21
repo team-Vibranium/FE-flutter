@@ -1,0 +1,5 @@
+# Mission Spec
+- MVP: PUZZLE
+  - 간단한 숫자/패턴 맞추기
+- 추후 확장: MATH, MEMORY, QUIZ
+- Enum 관리 → `mission_type` 컬럼으로 구분
