@@ -56,9 +56,6 @@ class CallDetailScreen extends StatelessWidget {
           Expanded(
             child: _buildChatLog(),
           ),
-          
-          // 입력창
-          _buildInputArea(context),
         ],
       ),
     );
@@ -226,62 +223,4 @@ class CallDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInputArea(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: Colors.grey[300]!,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: '메시지를 입력하세요...',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                enabled: false, // 기능 없음
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              onPressed: () {
-                // 기능 없음
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('통화가 종료되어 메시지를 보낼 수 없습니다.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              icon: const Icon(
-                Icons.send,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

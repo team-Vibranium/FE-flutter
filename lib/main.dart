@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/dashboard_screen.dart';
+import 'core/environment/environment.dart';
 
 void main() {
-  runApp(const AningCallApp());
+  // 개발 환경으로 설정 (실제 배포시에는 production으로 변경)
+  EnvironmentConfig.setEnvironment(Environment.development);
+  
+  runApp(
+    const ProviderScope(
+      child: AningCallApp(),
+    ),
+  );
 }
 
 class AningCallApp extends StatelessWidget {

@@ -1,8 +1,244 @@
 # System Architecture
 
-- Flutter App (React Native → Flutter 변경)
-- Backend: Spring Boot 3.3.x (Java 17)
-- DB: MySQL 8.0 (AWS RDS)
-- Cache: Redis 7.x (AWS ElastiCache or EC2)
-- Infra: AWS EC2, Docker 배포
-- Domain + HTTPS 필수 (Let's Encrypt/ACM)
+## 전체 시스템 아키텍처
+
+### 1. Frontend (Flutter App)
+- **플랫폼**: Flutter 3.9.2+
+- **상태관리**: Riverpod 2.6.1
+- **아키텍처 패턴**: Repository + Environment
+- **의존성 주입**: Provider 패턴
+
+#### 1.1 레이어 구조
+```
+Presentation Layer (UI)
+├── Screens (Pages)
+├── Widgets (Components)
+└── Animations
+
+Business Logic Layer
+├── Providers (State Management)
+├── Notifiers (Business Logic)
+└── Services (External Services)
+
+Data Layer
+├── Repositories (Data Access)
+├── Models (Data Models)
+└── Local Storage (SQLite/SharedPreferences)
+```
+
+#### 1.2 상태관리 (Riverpod)
+- **DashboardProvider**: 대시보드 상태 관리
+- **AlarmProvider**: 알람 상태 관리
+- **RepositoryProvider**: Repository 주입 관리
+
+#### 1.3 Repository 패턴
+- **AlarmRepository**: Production API 연동
+- **MockAlarmRepository**: Development Mock 데이터
+- **Environment 기반 주입**: 환경에 따라 자동 선택
+
+### 2. Backend (Spring Boot)
+- **프레임워크**: Spring Boot 3.3.x
+- **언어**: Java 17
+- **아키텍처**: RESTful API
+- **인증**: JWT 기반 인증
+
+#### 2.1 레이어 구조
+```
+Controller Layer
+├── AlarmController
+├── UserController
+└── MissionController
+
+Service Layer
+├── AlarmService
+├── UserService
+└── MissionService
+
+Repository Layer
+├── AlarmRepository
+├── UserRepository
+└── MissionRepository
+
+Entity Layer
+├── Alarm
+├── User
+└── Mission
+```
+
+### 3. 데이터베이스 (MySQL)
+- **버전**: MySQL 8.0
+- **호스팅**: AWS RDS
+- **백업**: 자동 백업 설정
+- **모니터링**: CloudWatch 연동
+
+#### 3.1 테이블 구조
+```sql
+-- 알람 테이블
+CREATE TABLE alarms (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    time VARCHAR(5) NOT NULL,
+    days JSON NOT NULL,
+    type ENUM('NORMAL', 'CALL') NOT NULL,
+    is_enabled BOOLEAN DEFAULT TRUE,
+    tag VARCHAR(50),
+    success_rate INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- 통화 로그 테이블
+CREATE TABLE call_logs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    call_start TIMESTAMP,
+    call_end TIMESTAMP,
+    result ENUM('SUCCESS', 'FAIL_NO_TALK', 'FAIL_SNOOZE') NOT NULL,
+    snooze_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- 사용자 테이블
+CREATE TABLE users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    avatar_type VARCHAR(20) DEFAULT 'default',
+    points INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### 4. 캐시 (Redis)
+- **버전**: Redis 7.x
+- **호스팅**: AWS ElastiCache
+- **용도**: 세션 관리, API 응답 캐싱
+- **만료 정책**: TTL 기반 자동 만료
+
+### 5. 인프라 (AWS)
+- **컴퓨팅**: EC2 인스턴스
+- **컨테이너**: Docker
+- **로드 밸런싱**: Application Load Balancer
+- **도메인**: Route 53
+- **SSL**: ACM (AWS Certificate Manager)
+
+#### 5.1 네트워크 구조
+```
+Internet
+├── CloudFront (CDN)
+├── Route 53 (DNS)
+└── Application Load Balancer
+    ├── EC2 Instance 1 (Spring Boot)
+    ├── EC2 Instance 2 (Spring Boot)
+    └── EC2 Instance 3 (Spring Boot)
+        ├── RDS MySQL (Primary)
+        ├── RDS MySQL (Read Replica)
+        └── ElastiCache Redis
+```
+
+## 데이터 흐름
+
+### 1. 알람 설정 플로우
+```
+Flutter App
+├── 사용자 입력
+├── DashboardProvider
+├── AlarmRepository
+├── API 호출 (Production)
+└── 로컬 알람 스케줄링
+```
+
+### 2. 알람 실행 플로우
+```
+OS 알람 트리거
+├── Flutter Local Notifications
+├── 알람 화면 표시
+├── 퍼즐 문제 제시
+├── 사용자 응답
+├── 결과 처리
+└── API 결과 전송
+```
+
+### 3. 데이터 동기화
+```
+Flutter App
+├── 로컬 데이터 (SQLite)
+├── API 동기화 (주기적)
+├── 충돌 해결
+└── 상태 업데이트
+```
+
+## 보안 아키텍처
+
+### 1. 인증 및 인가
+- **JWT 토큰**: 사용자 인증
+- **토큰 갱신**: Refresh Token 기반
+- **권한 관리**: Role-based Access Control
+
+### 2. 데이터 보호
+- **암호화**: AES-256 암호화
+- **전송 보안**: HTTPS/TLS 1.3
+- **저장 보안**: 데이터베이스 암호화
+
+### 3. API 보안
+- **Rate Limiting**: API 호출 제한
+- **CORS**: Cross-Origin Resource Sharing 설정
+- **입력 검증**: 데이터 유효성 검사
+
+## 모니터링 및 로깅
+
+### 1. 애플리케이션 모니터링
+- **CloudWatch**: AWS 서비스 모니터링
+- **Custom Metrics**: 비즈니스 메트릭
+- **알람**: 임계값 기반 알림
+
+### 2. 로깅 시스템
+- **구조화된 로그**: JSON 형태 로그
+- **로그 레벨**: DEBUG, INFO, WARN, ERROR
+- **로그 집계**: ELK Stack 또는 CloudWatch Logs
+
+### 3. 성능 모니터링
+- **APM**: Application Performance Monitoring
+- **데이터베이스 모니터링**: 쿼리 성능 분석
+- **사용자 행동 분석**: 사용 패턴 분석
+
+## 확장성 고려사항
+
+### 1. 수평적 확장
+- **로드 밸런싱**: 다중 인스턴스 배포
+- **데이터베이스 샤딩**: 데이터 분산 저장
+- **캐시 클러스터링**: Redis Cluster
+
+### 2. 수직적 확장
+- **인스턴스 크기 조정**: CPU/메모리 증설
+- **데이터베이스 최적화**: 인덱스 튜닝
+- **캐시 최적화**: 메모리 사용량 최적화
+
+### 3. 마이크로서비스 전환
+- **서비스 분리**: 도메인별 서비스 분리
+- **API Gateway**: 통합 API 관리
+- **서비스 메시**: Istio 또는 Linkerd
+
+## 배포 전략
+
+### 1. 개발 환경
+- **로컬 개발**: Docker Compose
+- **Mock 서비스**: 개발용 Mock API
+- **데이터베이스**: 로컬 MySQL
+
+### 2. 스테이징 환경
+- **AWS 인프라**: 프로덕션과 유사한 환경
+- **테스트 데이터**: 실제 데이터와 유사한 테스트 데이터
+- **성능 테스트**: 부하 테스트 수행
+
+### 3. 프로덕션 환경
+- **Blue-Green 배포**: 무중단 배포
+- **롤백 전략**: 문제 발생 시 이전 버전으로 복구
+- **모니터링**: 실시간 모니터링 및 알림
+
+## 결론
+AningCall 시스템은 현대적인 마이크로서비스 아키텍처를 기반으로 구축되어 있으며, 확장성, 보안성, 성능을 모두 고려한 설계를 가지고 있습니다. Flutter와 Spring Boot의 조합으로 크로스 플랫폼 지원과 강력한 백엔드 서비스를 제공하며, AWS 클라우드 인프라를 활용하여 안정적이고 확장 가능한 서비스를 구현했습니다.

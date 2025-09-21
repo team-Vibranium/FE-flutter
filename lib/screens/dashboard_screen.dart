@@ -1,63 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'alarm_add_screen.dart';
 import 'stats_screen.dart';
 import 'profile_screen.dart';
 import 'call_history_screen.dart';
 import 'avatar_customize_screen.dart';
+import '../core/providers/dashboard_provider.dart';
+import '../core/models/alarm.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
-  int _currentIndex = 0;
-  final bool _hasAlarms = true; // 더미 데이터
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _animation;
   late AnimationController _switchAnimationController;
   late Animation<double> _switchAnimation;
-  
-  // 사용자 데이터
-  int _userPoints = 1250;
-  String _selectedAvatar = 'default';
-  
-  // 알람 타입 필터 (0: 전체, 1: 일반알람, 2: 전화알람)
-  int _alarmTypeFilter = 0;
-  
-
-  // 더미 알람 데이터
-  final List<Map<String, dynamic>> _alarms = [
-    {
-      'id': 1,
-      'time': '07:00',
-      'days': ['월', '화', '수', '목', '금'],
-      'type': '일반알람',
-      'isEnabled': true,
-      'tag': '운동',
-      'successRate': 85, // 최근 7일 성공률
-    },
-    {
-      'id': 2,
-      'time': '08:30',
-      'days': ['토', '일'],
-      'type': '전화알람',
-      'isEnabled': false,
-      'tag': '회의',
-      'successRate': 60,
-    },
-    {
-      'id': 3,
-      'time': '06:45',
-      'days': ['월', '수', '금'],
-      'type': '일반알람',
-      'isEnabled': true,
-      'tag': '독서',
-      'successRate': 90,
-    },
-  ];
 
   @override
   void initState() {
@@ -90,18 +52,18 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final dashboardState = ref.watch(dashboardProvider);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('AningCall'),
         backgroundColor: Theme.of(context).colorScheme.surface,
       ),
-      body: _buildBody(),
+      body: _buildBody(dashboardState),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: dashboardState.currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(dashboardProvider.notifier).setCurrentIndex(index);
         },
         type: BottomNavigationBarType.fixed,
         items: const [
@@ -123,17 +85,25 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 0
+      floatingActionButton: dashboardState.currentIndex == 0
           ? FloatingActionButton(
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => AlarmAddScreen(
-                      onAlarmSaved: (newAlarm) {
-                        setState(() {
-                          _alarms.add(newAlarm);
-                        });
+                      onAlarmSaved: (alarm) {
+                        // Map을 Alarm 객체로 변환
+                        final alarmObj = Alarm(
+                          id: alarm['id'] ?? DateTime.now().millisecondsSinceEpoch,
+                          time: alarm['time'] ?? '07:00',
+                          days: List<String>.from(alarm['days'] ?? ['월', '화', '수', '목', '금']),
+                          type: alarm['type'] == '전화알람' ? AlarmType.call : AlarmType.normal,
+                          isEnabled: alarm['isEnabled'] ?? true,
+                          tag: alarm['tag'] ?? '알람',
+                          successRate: alarm['successRate'] ?? 0,
+                        );
+                        ref.read(dashboardProvider.notifier).addAlarm(alarmObj);
                         // 애니메이션 시작
                         _animationController.forward().then((_) {
                           _animationController.reset();
@@ -149,10 +119,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildBody() {
-    switch (_currentIndex) {
+  Widget _buildBody(DashboardState state) {
+    switch (state.currentIndex) {
       case 0:
-        return _buildAlarmTab();
+        return _buildAlarmTab(state);
       case 1:
         return const StatsScreen();
       case 2:
@@ -160,12 +130,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       case 3:
         return const ProfileScreen();
       default:
-        return _buildAlarmTab();
+        return _buildAlarmTab(state);
     }
   }
 
-  Widget _buildAlarmTab() {
-    if (!_hasAlarms) {
+  Widget _buildAlarmTab(DashboardState state) {
+    if (state.alarms.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -192,10 +162,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     return Column(
       children: [
         // 다음 알람 요약 카드
-        _buildNextAlarmSummary(),
+        _buildNextAlarmSummary(state),
         
         // 알람 타입 필터 슬라이더
-        _buildAlarmTypeSlider(),
+        _buildAlarmTypeSlider(state),
         
         // 알람 리스트
         Expanded(
@@ -204,10 +174,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             builder: (context, child) {
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: _getFilteredAndSortedAlarms().length,
+                itemCount: ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms().length,
                 itemBuilder: (context, index) {
-                  final alarm = _getFilteredAndSortedAlarms()[index];
-                  final originalIndex = _alarms.indexOf(alarm);
+                  final alarm = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms()[index];
+                  final originalIndex = state.alarms.indexOf(alarm);
                   return _buildAnimatedAlarmCard(alarm, originalIndex, index);
                 },
               );
@@ -218,7 +188,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildNextAlarmSummary() {
+  Widget _buildNextAlarmSummary(DashboardState state) {
     // 다음 알람까지 남은 시간 계산 (더미 데이터)
     const nextAlarmTime = '6시간 20분';
     const todayAlarmCount = 2;
@@ -302,13 +272,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 context,
                 MaterialPageRoute(
                   builder: (context) => AvatarCustomizeScreen(
-                    initialPoints: _userPoints,
-                    initialAvatar: _selectedAvatar,
+                    initialPoints: state.userPoints,
+                    initialAvatar: state.selectedAvatar,
                     onAvatarChanged: (points, avatar) {
-                      setState(() {
-                        _userPoints = points;
-                        _selectedAvatar = avatar;
-                      });
+                      ref.read(dashboardProvider.notifier).updateUserProfile(
+                        points: points,
+                        avatar: avatar,
+                      );
                     },
                   ),
                 ),
@@ -320,7 +290,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
               child: CircleAvatar(
                 radius: 50,
                 backgroundColor: Colors.white.withValues(alpha: 0.9),
-                child: _getAvatarIcon(_selectedAvatar),
+                child: _getAvatarIcon(state.selectedAvatar),
               ),
             ),
           ),
@@ -370,7 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildAlarmTypeSlider() {
+  Widget _buildAlarmTypeSlider(DashboardState state) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -387,9 +357,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() {
-                          _alarmTypeFilter = 0;
-                        });
+                        ref.read(dashboardProvider.notifier).setAlarmTypeFilter(0);
                         _animationController.forward().then((_) {
                           _animationController.reset();
                         });
@@ -397,7 +365,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
-                          color: _alarmTypeFilter == 0
+                          color: state.alarmTypeFilter == 0
                               ? Theme.of(context).colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
@@ -406,7 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           child: Text(
                             '전체',
                             style: TextStyle(
-                              color: _alarmTypeFilter == 0
+                              color: state.alarmTypeFilter == 0
                                   ? Colors.white
                                   : Colors.grey[600],
                               fontWeight: FontWeight.w600,
@@ -420,9 +388,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() {
-                          _alarmTypeFilter = 1;
-                        });
+                        ref.read(dashboardProvider.notifier).setAlarmTypeFilter(1);
                         _animationController.forward().then((_) {
                           _animationController.reset();
                         });
@@ -430,7 +396,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
-                          color: _alarmTypeFilter == 1
+                          color: state.alarmTypeFilter == 1
                               ? Theme.of(context).colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
@@ -439,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           child: Text(
                             '일반알람',
                             style: TextStyle(
-                              color: _alarmTypeFilter == 1
+                              color: state.alarmTypeFilter == 1
                                   ? Colors.white
                                   : Colors.grey[600],
                               fontWeight: FontWeight.w600,
@@ -453,9 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() {
-                          _alarmTypeFilter = 2;
-                        });
+                        ref.read(dashboardProvider.notifier).setAlarmTypeFilter(2);
                         _animationController.forward().then((_) {
                           _animationController.reset();
                         });
@@ -463,7 +427,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
-                          color: _alarmTypeFilter == 2
+                          color: state.alarmTypeFilter == 2
                               ? Theme.of(context).colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
@@ -472,7 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           child: Text(
                             '전화알람',
                             style: TextStyle(
-                              color: _alarmTypeFilter == 2
+                              color: state.alarmTypeFilter == 2
                                   ? Colors.white
                                   : Colors.grey[600],
                               fontWeight: FontWeight.w600,
@@ -492,30 +456,9 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     );
   }
 
-  List<Map<String, dynamic>> _getFilteredAndSortedAlarms() {
-    List<Map<String, dynamic>> filteredAlarms = List.from(_alarms);
-    
-    // 알람 타입 필터링
-    if (_alarmTypeFilter == 1) {
-      // 일반알람만
-      filteredAlarms = _alarms.where((alarm) => alarm['type'] == '일반알람').toList();
-    } else if (_alarmTypeFilter == 2) {
-      // 전화알람만
-      filteredAlarms = _alarms.where((alarm) => alarm['type'] == '전화알람').toList();
-    }
-    
-    // 활성화된 알람을 먼저, 그 다음 비활성화된 알람 순으로 정렬
-    filteredAlarms.sort((a, b) {
-      if (a['isEnabled'] == b['isEnabled']) return 0;
-      return a['isEnabled'] ? -1 : 1;
-    });
-    
-    return filteredAlarms;
-  }
-
-  Widget _buildAnimatedAlarmCard(Map<String, dynamic> alarm, int originalIndex, int displayIndex) {
+  Widget _buildAnimatedAlarmCard(Alarm alarm, int originalIndex, int displayIndex) {
     // 남은 시간 계산 (더미 데이터)
-    final remainingTime = _getRemainingTime(alarm['time']);
+    final remainingTime = _getRemainingTime(alarm.time);
     
     return AnimatedBuilder(
       animation: _switchAnimation,
@@ -545,14 +488,19 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                       context,
                       MaterialPageRoute(
                         builder: (context) => AlarmAddScreen(
-                          alarmData: alarm,
+                          alarmData: alarm.toJson(),
                           onAlarmSaved: (updatedAlarm) {
-                            setState(() {
-                              final index = _alarms.indexWhere((a) => a['id'] == updatedAlarm['id']);
-                              if (index != -1) {
-                                _alarms[index] = updatedAlarm;
-                              }
-                            });
+                            // Map을 Alarm 객체로 변환
+                            final updatedAlarmObj = Alarm(
+                              id: updatedAlarm['id'] ?? alarm.id,
+                              time: updatedAlarm['time'] ?? alarm.time,
+                              days: List<String>.from(updatedAlarm['days'] ?? alarm.days),
+                              type: updatedAlarm['type'] == '전화알람' ? AlarmType.call : AlarmType.normal,
+                              isEnabled: updatedAlarm['isEnabled'] ?? alarm.isEnabled,
+                              tag: updatedAlarm['tag'] ?? alarm.tag,
+                              successRate: updatedAlarm['successRate'] ?? alarm.successRate,
+                            );
+                            ref.read(dashboardProvider.notifier).updateAlarm(updatedAlarmObj);
                             // 애니메이션 시작
                             _animationController.forward().then((_) {
                               _animationController.reset();
@@ -572,12 +520,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           children: [
                             // 시간 표시
                             CircleAvatar(
-                              backgroundColor: alarm['isEnabled'] 
+                              backgroundColor: alarm.isEnabled 
                                   ? Theme.of(context).colorScheme.primary
                                   : Colors.grey[400],
                               radius: 24,
                               child: Text(
-                                alarm['time'].split(':')[0],
+                                alarm.time.split(':')[0],
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -593,11 +541,11 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    alarm['time'],
+                                    alarm.time,
                                     style: TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.bold,
-                                      color: alarm['isEnabled'] 
+                                      color: alarm.isEnabled 
                                           ? null 
                                           : Colors.grey[600],
                                     ),
@@ -617,16 +565,14 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                             
                             // ON/OFF 스위치
                             Switch(
-                              value: alarm['isEnabled'],
+                              value: alarm.isEnabled,
                               onChanged: (value) {
                                 // 스위치 애니메이션 시작
                                 _switchAnimationController.forward().then((_) {
                                   _switchAnimationController.reverse();
                                 });
                                 
-                                setState(() {
-                                  _alarms[originalIndex]['isEnabled'] = value;
-                                });
+                                ref.read(dashboardProvider.notifier).toggleAlarm(alarm.id);
                                 
                                 // 위치 변경 애니메이션 시작
                                 Future.delayed(const Duration(milliseconds: 150), () {
@@ -645,7 +591,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                         Row(
                           children: [
                             Text(
-                              alarm['days'].join(', '),
+                              alarm.days.join(', '),
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 14,
@@ -653,9 +599,9 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                             ),
                             const SizedBox(width: 16),
                             Text(
-                              alarm['type'],
+                              alarm.typeDisplayName,
                               style: TextStyle(
-                                color: alarm['type'] == '전화알람'
+                                color: alarm.type == AlarmType.call
                                     ? Colors.blue[600]
                                     : Colors.green[600],
                                 fontSize: 12,
@@ -671,31 +617,31 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: alarm['isEnabled']
+                            color: alarm.isEnabled
                                 ? Theme.of(context).colorScheme.primaryContainer
                                 : Colors.grey[300],
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            alarm['tag'],
+                            alarm.tag,
                             style: TextStyle(
-                              color: alarm['isEnabled']
+                              color: alarm.isEnabled
                                   ? Theme.of(context).colorScheme.onPrimaryContainer
                                   : Colors.grey[600],
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                                                      ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 }

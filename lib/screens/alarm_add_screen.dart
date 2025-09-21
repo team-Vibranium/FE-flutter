@@ -45,22 +45,78 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
   void _loadAlarmData() {
     if (widget.alarmData != null) {
       final alarm = widget.alarmData!;
+      
+      // 시간 설정
       final timeParts = alarm['time'].split(':');
       _selectedTime = TimeOfDay(
         hour: int.parse(timeParts[0]),
         minute: int.parse(timeParts[1]),
       );
-      _selectedAlarmType = alarm['type'];
+      
+      // 알람 타입 설정 (enum을 문자열로 변환)
+      if (alarm['type'] == 'NORMAL' || alarm['type'] == '일반알람') {
+        _selectedAlarmType = '일반알람';
+      } else if (alarm['type'] == 'CALL' || alarm['type'] == '전화알람') {
+        _selectedAlarmType = '전화알람';
+      }
+      
+      // 요일 설정
       _selectedDays.clear();
       _selectedDays.addAll(List<String>.from(alarm['days']));
       
-      // 기존 데이터가 있으면 로드
+      // 제목 설정
       if (alarm['title'] != null) {
         _alarmTitleController.text = alarm['title'];
+      } else if (alarm['tag'] != null) {
+        _alarmTitleController.text = alarm['tag'];
+      } else {
+        _alarmTitleController.text = '알람';
       }
-      if (alarm['tag'] != null) {
-        _alarmTitleController.text = alarm['tag']; // 태그를 제목으로 사용
+      
+      // 상황 설정
+      if (alarm['situation'] != null) {
+        _situationController.text = alarm['situation'];
       }
+      
+      // 미션 설정
+      if (alarm['mission'] != null) {
+        _selectedMission = alarm['mission'];
+      }
+      
+      // 사운드 설정
+      if (alarm['sound'] != null) {
+        _selectedSound = alarm['sound'];
+      }
+      
+      // 목소리 설정
+      if (alarm['voice'] != null) {
+        _selectedVoice = alarm['voice'];
+      }
+      
+      // 컨셉 설정
+      if (alarm['concept'] != null) {
+        _selectedConcept = alarm['concept'];
+      }
+      
+      // 볼륨 설정
+      if (alarm['volume'] != null) {
+        _volume = alarm['volume'].toDouble();
+      }
+      
+      // 진동 설정
+      if (alarm['isVibrationEnabled'] != null) {
+        _isVibrationEnabled = alarm['isVibrationEnabled'];
+      }
+      
+      // 스누즈 설정
+      if (alarm['snoozeMinutes'] != null) {
+        _snoozeMinutes = alarm['snoozeMinutes'];
+      }
+      
+      if (alarm['snoozeCount'] != null) {
+        _snoozeCount = alarm['snoozeCount'];
+      }
+      
     } else {
       // 새 알람일 때 기본값 설정
       _alarmTitleController.text = '새 알람';
@@ -786,6 +842,7 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
       'snoozeMinutes': _snoozeMinutes,
       'snoozeCount': _snoozeCount,
       'situation': _situationController.text,
+      'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
     };
 
     // 콜백으로 알람 데이터 전달

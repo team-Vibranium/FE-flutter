@@ -1,3 +1,184 @@
-# AningCall PRD
+# AningCall PRD (Product Requirements Document)
 
-최종 버전 문서
+## 프로젝트 개요
+AningCall은 사용자가 알람을 설정하고, 알람이 울릴 때 퍼즐이나 수학 문제를 해결해야 알람을 끌 수 있는 앱입니다. 이를 통해 사용자의 기상률을 높이고, 인지 능력을 향상시키는 것이 목표입니다.
+
+## 기술 스택
+
+### Frontend (Flutter)
+- **프레임워크**: Flutter 3.9.2+
+- **상태관리**: Riverpod 2.6.1
+- **HTTP 클라이언트**: Dio 5.4.0
+- **로컬 저장소**: SharedPreferences, SQLite
+- **알람 관리**: flutter_local_notifications
+- **JSON 직렬화**: json_annotation + build_runner
+
+### Backend
+- **프레임워크**: Spring Boot 3.3.x
+- **언어**: Java 17
+- **데이터베이스**: MySQL 8.0 (AWS RDS)
+- **캐시**: Redis 7.x (AWS ElastiCache)
+
+### 인프라
+- **클라우드**: AWS EC2
+- **컨테이너**: Docker
+- **도메인**: HTTPS 필수 (Let's Encrypt/ACM)
+
+## 핵심 기능
+
+### 1. 알람 관리
+- **알람 생성/수정/삭제**: 사용자가 알람을 설정하고 관리
+- **알람 타입**: 일반알람, 전화알람 구분
+- **반복 설정**: 요일별 반복 설정
+- **알람 활성화/비활성화**: 토글 스위치로 간편 관리
+
+### 2. 퍼즐 시스템 (MVP)
+- **퍼즐 타입**: 간단한 숫자/패턴 맞추기
+- **확장 가능**: MATH, MEMORY, QUIZ 등 추가 예정
+- **난이도 조절**: 사용자 수준에 맞는 난이도 설정
+
+### 3. 사용자 인터페이스
+- **대시보드**: 알람 목록, 다음 알람 정보 표시
+- **통계**: 알람 성공률, 퍼즐 해결률 등
+- **프로필**: 사용자 정보, 아바타 커스터마이징
+- **통화 기록**: 알람 통화 이력 관리
+
+### 4. 아바타 시스템
+- **아바타 선택**: 다양한 캐릭터 선택 가능
+- **포인트 시스템**: 퍼즐 해결 시 포인트 획득
+- **레벨업**: 포인트에 따른 아바타 업그레이드
+
+## 아키텍처 설계
+
+### 1. Repository 패턴
+- **AlarmRepository**: Production 환경용 API 연동
+- **MockAlarmRepository**: Development 환경용 Mock 데이터
+- **Environment 기반 주입**: 환경에 따라 자동 선택
+
+### 2. 상태관리 (Riverpod)
+- **DashboardProvider**: 대시보드 상태 관리
+- **AlarmProvider**: 알람 상태 관리
+- **RepositoryProvider**: Repository 주입 관리
+
+### 3. 데이터 모델
+- **Alarm**: 알람 정보 (JSON serialization 지원)
+- **CallLog**: 통화 로그
+- **User**: 사용자 정보
+
+## 데이터베이스 스키마
+
+### 1. 알람 테이블
+- `id`: 알람 ID (Primary Key)
+- `user_id`: 사용자 ID (Foreign Key)
+- `time`: 알람 시간
+- `days`: 반복 요일 (JSON)
+- `type`: 알람 타입 (NORMAL/CALL)
+- `is_enabled`: 활성화 상태
+- `tag`: 알람 태그
+- `success_rate`: 성공률
+
+### 2. 통화 로그 테이블
+- `id`: 로그 ID (Primary Key)
+- `user_id`: 사용자 ID (Foreign Key)
+- `call_start`: 통화 시작 시간
+- `call_end`: 통화 종료 시간
+- `result`: 결과 (SUCCESS/FAIL_NO_TALK/FAIL_SNOOZE)
+- `snooze_count`: 스누즈 횟수
+
+### 3. 미션 타입 테이블
+- `id`: 미션 ID (Primary Key)
+- `type`: 미션 타입 (PUZZLE/MATH/MEMORY/QUIZ)
+- `difficulty`: 난이도
+- `content`: 미션 내용 (JSON)
+
+## API 설계
+
+### 1. 알람 관련
+- `POST /alarms/result`: 알람 결과 제출
+- `GET /alarms/logs`: 통화 로그 조회
+- `POST /alarms/schedule`: 알람 스케줄링
+
+### 2. 사용자 관련
+- `GET /users/profile`: 사용자 프로필 조회
+- `PUT /users/profile`: 사용자 프로필 수정
+- `GET /users/avatar`: 아바타 정보 조회
+
+## 환경 설정
+
+### 1. Development
+- Mock 데이터 사용
+- 로컬 개발 서버
+- 디버그 모드 활성화
+
+### 2. Production
+- 실제 API 연동
+- AWS 인프라 사용
+- HTTPS 필수
+
+## 보안 고려사항
+
+### 1. 데이터 보호
+- 사용자 데이터 암호화
+- API 키 환경 변수 관리
+- 인증 토큰 관리
+
+### 2. 개인정보 보호
+- 최소한의 데이터 수집
+- 데이터 보존 정책 준수
+- 사용자 동의 기반 데이터 처리
+
+## 성능 최적화
+
+### 1. 프론트엔드
+- Riverpod Provider 최적화
+- 이미지 캐싱
+- 메모리 관리
+
+### 2. 백엔드
+- 데이터베이스 인덱싱
+- Redis 캐싱
+- API 응답 최적화
+
+## 배포 전략
+
+### 1. 개발 환경
+- 로컬 개발 서버
+- Mock 데이터 사용
+- Hot Reload 지원
+
+### 2. 스테이징 환경
+- 실제 API 연동
+- 테스트 데이터 사용
+- 성능 테스트
+
+### 3. 프로덕션 환경
+- AWS 인프라
+- 실제 데이터베이스
+- 모니터링 시스템
+
+## 모니터링 및 로깅
+
+### 1. 애플리케이션 모니터링
+- 에러 추적
+- 성능 모니터링
+- 사용자 행동 분석
+
+### 2. 로깅
+- 구조화된 로그
+- 로그 레벨 관리
+- 로그 보존 정책
+
+## 향후 확장 계획
+
+### 1. 기능 확장
+- 다양한 미션 타입 추가
+- 소셜 기능 (친구와 경쟁)
+- AI 기반 개인화
+
+### 2. 플랫폼 확장
+- 웹 버전 개발
+- 데스크톱 앱 지원
+- 웨어러블 디바이스 연동
+
+## 결론
+AningCall은 사용자의 기상률 향상과 인지 능력 개발을 목표로 하는 혁신적인 알람 앱입니다. Flutter와 Spring Boot를 기반으로 한 현대적인 아키텍처를 통해 확장 가능하고 유지보수가 용이한 시스템을 구축했습니다.

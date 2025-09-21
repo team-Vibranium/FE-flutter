@@ -1,8 +1,124 @@
 # Flutter App Architecture
 
-- 패턴: Repository + Environment (dev=Mock, prod=API)
-- 알람 설정은 로컬 저장소(OS 스케줄러)
-- API 연동은 prod 환경에서만 사용
-- 상태관리: Riverpod
-- HTTP: Dio
-- 로컬 데이터: SharedPreferences / SQLite
+## 구현된 아키텍처
+
+### 1. 상태관리: Riverpod
+- **Provider**: `StateNotifierProvider`를 사용한 상태 관리
+- **Dashboard Provider**: `DashboardNotifier`로 대시보드 상태 관리
+- **Alarm Provider**: `AlarmNotifier`로 알람 상태 관리
+- **Repository Provider**: Environment에 따른 Repository 주입
+
+### 2. Repository 패턴
+- **AlarmRepository**: Production 환경용 API 연동
+- **MockAlarmRepository**: Development 환경용 Mock 데이터
+- **Environment 기반 주입**: `EnvironmentConfig`에 따라 자동 선택
+
+### 3. Environment 설정
+- **Development**: Mock 데이터 사용, 로컬 개발
+- **Production**: 실제 API 연동
+- **환경별 Base URL**: localhost(dev) / api.aningcall.com(prod)
+
+### 4. 데이터 모델
+- **Alarm**: 알람 정보 모델 (JSON serialization 지원)
+- **CallLog**: 통화 로그 모델
+- **Enum 관리**: `AlarmType`, `CallResult` 등
+
+### 5. UI 컴포넌트
+- **Dashboard Screen**: Riverpod 기반 상태 관리
+- **Alarm Management**: CRUD 기능 구현
+- **Navigation**: Bottom Navigation Bar
+- **Animation**: Flutter Animation Controller 사용
+
+### 6. 의존성 관리
+- **HTTP**: Dio
+- **로컬 저장소**: SharedPreferences / SQLite
+- **알람**: flutter_local_notifications
+- **JSON**: json_annotation + build_runner
+- **UUID**: uuid 패키지
+
+## 파일 구조
+```
+lib/
+├── core/
+│   ├── constants/
+│   ├── environment/
+│   │   └── environment.dart
+│   ├── models/
+│   │   ├── alarm.dart
+│   │   └── call_log.dart
+│   ├── providers/
+│   │   ├── alarm_provider.dart
+│   │   └── dashboard_provider.dart
+│   └── repositories/
+│       ├── alarm_repository.dart
+│       └── mock_alarm_repository.dart
+├── features/
+│   ├── alarm/
+│   ├── auth/
+│   ├── home/
+│   └── puzzle/
+├── screens/
+│   ├── dashboard_screen.dart
+│   ├── alarm_add_screen.dart
+│   ├── stats_screen.dart
+│   ├── profile_screen.dart
+│   ├── call_history_screen.dart
+│   ├── call_detail_screen.dart
+│   ├── alarm_ring_screen.dart
+│   ├── avatar_customize_screen.dart
+│   └── sound_selection_screen.dart
+└── main.dart
+```
+
+## 주요 기능
+
+### 1. 알람 관리
+- 알람 생성, 수정, 삭제
+- 알람 타입별 필터링 (일반알람/전화알람)
+- 알람 활성화/비활성화 토글
+- 애니메이션 효과
+
+### 2. 사용자 인터페이스
+- Material Design 3 적용
+- 반응형 레이아웃
+- 다크/라이트 테마 지원
+- 커스텀 아바타 시스템
+
+### 3. 데이터 관리
+- 로컬 알람 스케줄링
+- API 연동 (Production 환경)
+- Mock 데이터 (Development 환경)
+- JSON 직렬화/역직렬화
+
+## 개발 환경 설정
+
+### 1. 의존성 설치
+```bash
+flutter pub get
+```
+
+### 2. 코드 생성
+```bash
+dart run build_runner build
+```
+
+### 3. 환경 설정
+- Development: `EnvironmentConfig.setEnvironment(Environment.development)`
+- Production: `EnvironmentConfig.setEnvironment(Environment.production)`
+
+## 배포 고려사항
+
+### 1. 환경별 설정
+- Development: Mock 데이터 사용
+- Production: 실제 API 연동
+- 환경 변수로 설정 관리
+
+### 2. 성능 최적화
+- Riverpod Provider 최적화
+- 이미지 캐싱
+- 메모리 관리
+
+### 3. 보안
+- API 키 환경 변수 관리
+- 데이터 암호화
+- 인증 토큰 관리
