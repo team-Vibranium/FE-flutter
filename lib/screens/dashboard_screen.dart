@@ -7,6 +7,7 @@ import 'call_history_screen.dart';
 import 'avatar_customize_screen.dart';
 import '../core/providers/dashboard_provider.dart';
 import '../core/models/alarm.dart';
+import '../core/widgets/buttons/theme_toggle_button.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -58,6 +59,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
       appBar: AppBar(
         title: const Text('AningCall'),
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actions: const [
+          ThemeToggleButton(),
+          SizedBox(width: 8),
+        ],
       ),
       body: _buildBody(dashboardState),
       bottomNavigationBar: BottomNavigationBar(
@@ -167,18 +172,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
         // 알람 타입 필터 슬라이더
         _buildAlarmTypeSlider(state),
         
-        // 알람 리스트
+        // 알람 리스트 (최소 3개 표시)
         Expanded(
           child: AnimatedBuilder(
             animation: _animation,
             builder: (context, child) {
+              final filteredAlarms = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms();
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms().length,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: filteredAlarms.length,
                 itemBuilder: (context, index) {
-                  final alarm = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms()[index];
+                  final alarm = filteredAlarms[index];
                   final originalIndex = state.alarms.indexOf(alarm);
-                  return _buildAnimatedAlarmCard(alarm, originalIndex, index);
+                  return _buildCompactAlarmCard(alarm, originalIndex, index);
                 },
               );
             },
@@ -191,16 +197,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
   Widget _buildNextAlarmSummary(DashboardState state) {
     // 다음 알람까지 남은 시간 계산 (더미 데이터)
     const nextAlarmTime = '6시간 20분';
-    const todayAlarmCount = 2;
+    final todayAlarmCount = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms().length;
+    final activeAlarmCount = state.alarms.where((alarm) => alarm.isEnabled).length;
 
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8), // 상하 마진 줄임
+      padding: const EdgeInsets.all(16), // 패딩 줄임
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+            Theme.of(context).colorScheme.secondary,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -243,21 +250,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                 ),
                 const SizedBox(height: 16),
                 
-                // 오늘 알람 개수
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '오늘 알람 $todayAlarmCount개',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                // 알람 상태 정보
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        '활성 ${activeAlarmCount}개',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        '전체 $todayAlarmCount개',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -285,12 +312,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
               );
             },
             child: CircleAvatar(
-              radius: 55,
+              radius: 45, // 크기 줄임
               backgroundColor: Colors.white.withValues(alpha: 0.2),
               child: CircleAvatar(
-                radius: 50,
+                radius: 40, // 크기 줄임
                 backgroundColor: Colors.white.withValues(alpha: 0.9),
-                child: _getAvatarIcon(state.selectedAvatar),
+                child: _getAvatarIcon(state.selectedAvatar, size: 45), // 크기 조정
               ),
             ),
           ),
@@ -309,7 +336,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     return timeMap[alarmTime] ?? '시간 계산 중...';
   }
 
-  Widget _getAvatarIcon(String avatarId) {
+  Widget _getAvatarIcon(String avatarId, {double size = 55}) {
     // 아바타 ID에 따른 아이콘 반환
     final avatarMap = {
       'default': Icons.person,
@@ -335,7 +362,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
 
     return Icon(
       avatarMap[avatarId] ?? Icons.person,
-      size: 55,
+      size: size,
       color: colorMap[avatarId] ?? Theme.of(context).colorScheme.primary,
     );
   }
@@ -456,7 +483,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     );
   }
 
-  Widget _buildAnimatedAlarmCard(Alarm alarm, int originalIndex, int displayIndex) {
+  Widget _buildCompactAlarmCard(Alarm alarm, int originalIndex, int displayIndex) {
     // 남은 시간 계산 (더미 데이터)
     final remainingTime = _getRemainingTime(alarm.time);
     
@@ -466,21 +493,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
         return SlideTransition(
           position: Tween<Offset>(
             begin: Offset.zero,
-            end: const Offset(0, -0.1), // 위로 살짝 슬라이드
+            end: const Offset(0, -0.1),
           ).animate(CurvedAnimation(
             parent: _switchAnimation,
             curve: Curves.easeInOut,
           )),
           child: Transform.scale(
-            scale: 1.0 + (_switchAnimation.value * 0.02), // 약간의 스케일 효과
+            scale: 1.0 + (_switchAnimation.value * 0.02),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeInOutCubic,
-              margin: const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 8), // 마진 줄임
               child: Card(
-                elevation: 3,
+                elevation: 2, // 그림자 줄임
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12), // 둥글기 줄임
                 ),
                 child: InkWell(
                   onTap: () {
@@ -490,7 +517,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                         builder: (context) => AlarmAddScreen(
                           alarmData: alarm.toJson(),
                           onAlarmSaved: (updatedAlarm) {
-                            // Map을 Alarm 객체로 변환
                             final updatedAlarmObj = Alarm(
                               id: updatedAlarm['id'] ?? alarm.id,
                               time: updatedAlarm['time'] ?? alarm.time,
@@ -501,7 +527,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                               successRate: updatedAlarm['successRate'] ?? alarm.successRate,
                             );
                             ref.read(dashboardProvider.notifier).updateAlarm(updatedAlarmObj);
-                            // 애니메이션 시작
                             _animationController.forward().then((_) {
                               _animationController.reset();
                             });
@@ -510,127 +535,128 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                       ),
                     );
                   },
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: const EdgeInsets.all(12), // 패딩 줄임
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            // 시간 표시
-                            CircleAvatar(
-                              backgroundColor: alarm.isEnabled 
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.grey[400],
-                              radius: 24,
-                              child: Text(
-                                alarm.time.split(':')[0],
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                        // 시간 표시 (더 작게)
+                        CircleAvatar(
+                          backgroundColor: alarm.isEnabled 
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey[400],
+                          radius: 18, // 크기 줄임
+                          child: Text(
+                            alarm.time.split(':')[0],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12, // 폰트 크기 줄임
                             ),
-                            const SizedBox(width: 16),
-                            
-                            // 시간과 남은 시간
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        
+                        // 메인 정보
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
                                   Text(
                                     alarm.time,
                                     style: TextStyle(
-                                      fontSize: 24,
+                                      fontSize: 18, // 폰트 크기 줄임
                                       fontWeight: FontWeight.bold,
                                       color: alarm.isEnabled 
                                           ? null 
                                           : Colors.grey[600],
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    remainingTime,
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: alarm.type == AlarmType.call
+                                          ? Colors.blue[100]
+                                          : Colors.green[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      alarm.type == AlarmType.call ? '전화' : '일반',
+                                      style: TextStyle(
+                                        color: alarm.type == AlarmType.call
+                                            ? Colors.blue[700]
+                                            : Colors.green[700],
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            
-                            // ON/OFF 스위치
-                            Switch(
-                              value: alarm.isEnabled,
-                              onChanged: (value) {
-                                // 스위치 애니메이션 시작
-                                _switchAnimationController.forward().then((_) {
-                                  _switchAnimationController.reverse();
-                                });
-                                
-                                ref.read(dashboardProvider.notifier).toggleAlarm(alarm.id);
-                                
-                                // 위치 변경 애니메이션 시작
-                                Future.delayed(const Duration(milliseconds: 150), () {
-                                  _animationController.forward().then((_) {
-                                    _animationController.reset();
-                                  });
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        
-                        // 요일과 유형
-                        Row(
-                          children: [
-                            Text(
-                              alarm.days.join(', '),
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      alarm.days.length >= 5 
+                                          ? '평일' 
+                                          : alarm.days.join(', '),
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (alarm.tag.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: alarm.isEnabled
+                                            ? Theme.of(context).colorScheme.primaryContainer
+                                            : Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        alarm.tag,
+                                        style: TextStyle(
+                                          color: alarm.isEnabled
+                                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                                              : Colors.grey[600],
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Text(
-                              alarm.typeDisplayName,
-                              style: TextStyle(
-                                color: alarm.type == AlarmType.call
-                                    ? Colors.blue[600]
-                                    : Colors.green[600],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // 태그
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: alarm.isEnabled
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
+                            ],
                           ),
-                          child: Text(
-                            alarm.tag,
-                            style: TextStyle(
-                              color: alarm.isEnabled
-                                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                                  : Colors.grey[600],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        ),
+                        
+                        // 스위치 (더 작게)
+                        Transform.scale(
+                          scale: 0.8, // 스위치 크기 줄임
+                          child: Switch(
+                            value: alarm.isEnabled,
+                            onChanged: (value) {
+                              _switchAnimationController.forward().then((_) {
+                                _switchAnimationController.reverse();
+                              });
+                              
+                              ref.read(dashboardProvider.notifier).toggleAlarm(alarm.id);
+                              
+                              Future.delayed(const Duration(milliseconds: 150), () {
+                                _animationController.forward().then((_) {
+                                  _animationController.reset();
+                                });
+                              });
+                            },
                           ),
                         ),
                       ],
