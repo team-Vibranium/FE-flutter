@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../core/widgets/buttons/theme_toggle_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -53,6 +52,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('마이페이지'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
         actions: [
           IconButton(
             onPressed: _showSettings,
@@ -71,8 +72,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildMenuSection(),
             const SizedBox(height: 16),
             _buildAchievementsSection(),
-            const SizedBox(height: 16),
-            _buildDangerZone(),
           ],
         ),
       ),
@@ -81,6 +80,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileCard() {
     return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -136,9 +137,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Text(
                             _nickname,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -166,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _email,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -174,7 +176,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 IconButton(
                   onPressed: _editProfile,
-                  icon: const Icon(Icons.edit),
+                  icon: Icon(
+                    Icons.edit,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
                   tooltip: '프로필 수정',
                 ),
               ],
@@ -268,9 +273,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _alarmSettings,
           ),
           const Divider(height: 1),
-          // 테마 설정 추가
-          const ThemeToggleButton(showLabel: true),
-          const Divider(height: 1),
           _buildMenuTile(
             icon: Icons.help,
             title: '도움말',
@@ -334,14 +336,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(
               color: isUnlocked 
                   ? achievement['color'].withOpacity(0.2)
-                  : Colors.grey[200],
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
               borderRadius: BorderRadius.circular(25),
             ),
             child: Icon(
               achievement['icon'],
               color: isUnlocked 
                   ? achievement['color']
-                  : Colors.grey[400],
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
               size: 24,
             ),
           ),
@@ -355,7 +357,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isUnlocked ? Colors.black : Colors.grey[600],
+                    color: isUnlocked 
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -363,7 +367,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   achievement['description'],
                   style: TextStyle(
                     fontSize: 14,
-                    color: isUnlocked ? Colors.grey[600] : Colors.grey[400],
+                    color: isUnlocked 
+                        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.7)
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                   ),
                 ),
               ],
@@ -378,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           else
             Icon(
               Icons.lock,
-              color: Colors.grey[400],
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
               size: 20,
             ),
         ],
@@ -386,49 +392,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildDangerZone() {
-    return Card(
-      color: Colors.red[50],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.warning, color: Colors.red[700], size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  '위험 구역',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red[700],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _deleteAccount,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: const Text(
-                  '탈퇴하기',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showSettings() {
     showModalBottomSheet(
@@ -439,11 +402,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
+              leading: const Icon(Icons.logout, color: Colors.orange),
               title: const Text('로그아웃'),
               onTap: () {
                 Navigator.pop(context);
                 _logout();
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              title: const Text(
+                '회원탈퇴',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteAccount();
               },
             ),
           ],

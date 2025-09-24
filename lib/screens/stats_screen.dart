@@ -241,20 +241,24 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFilterChip('전체', 'all', _selectedFilter == 'all'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildFilterChip('플러스', 'plus', _selectedFilter == 'plus'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildFilterChip('마이너스', 'minus', _selectedFilter == 'minus'),
-                ),
-              ],
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceVariant,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildSegmentedButton('전체', 'all', _selectedFilter == 'all', isFirst: true),
+                  ),
+                  Expanded(
+                    child: _buildSegmentedButton('플러스', 'plus', _selectedFilter == 'plus'),
+                  ),
+                  Expanded(
+                    child: _buildSegmentedButton('마이너스', 'minus', _selectedFilter == 'minus', isLast: true),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -262,7 +266,7 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildFilterChip(String label, String value, bool isSelected) {
+  Widget _buildSegmentedButton(String label, String value, bool isSelected, {bool isFirst = false, bool isLast = false}) {
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -270,17 +274,29 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected 
+              ? Theme.of(context).colorScheme.surface
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ] : null,
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[700],
-            fontWeight: FontWeight.w500,
+            color: isSelected 
+                ? Theme.of(context).colorScheme.onSurface
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             fontSize: 14,
           ),
         ),
@@ -390,6 +406,7 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -481,7 +498,9 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Theme.of(context).colorScheme.surface
+                    : Theme.of(context).colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
