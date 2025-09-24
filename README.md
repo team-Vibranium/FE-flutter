@@ -148,6 +148,18 @@ flutter run -d chrome
 # Windows에서 실행 (Developer Mode 필요)
 flutter run -d windows
 ```
+5. **xcode 시뮬레이터에서 실행**
+# 1. 사용 가능한 기기 확인  
+xcrun simctl list devices available
+
+# 2. 원하는 시뮬레이터 부팅
+xcrun simctl boot "시뮬레이터 이름"
+
+# 3. 시뮬레이터 앱 열기
+open -a Simulator
+
+# 4. Flutter 앱 실행
+flutter run -d "시뮬레이터 이름"
 
 ### 테스트 실행
 ```bash
