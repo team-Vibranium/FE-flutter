@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/widgets/buttons/theme_toggle_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -70,6 +71,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildMenuSection(),
             const SizedBox(height: 16),
             _buildAchievementsSection(),
+            const SizedBox(height: 16),
+            _buildDangerZone(),
           ],
         ),
       ),
@@ -84,16 +87,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Text(
-                    _nickname[0],
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                GestureDetector(
+                  onTap: () {
+                    // 프로필 서클 누르면 캐릭터 꾸미기로 이동
+                    Navigator.pushNamed(context, '/avatar_customize');
+                  },
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: Text(
+                          _nickname[0],
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.secondary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -114,15 +145,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.amber[100],
+                              gradient: LinearGradient(
+                                colors: [Colors.amber[300]!, Colors.amber[600]!],
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               _grade,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.amber[800],
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -142,6 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 IconButton(
                   onPressed: _editProfile,
                   icon: const Icon(Icons.edit),
+                  tooltip: '프로필 수정',
                 ),
               ],
             ),
@@ -158,18 +192,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '나의 성과',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '나의 성과',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // 통계 화면으로 이동
+                  },
+                  child: const Text('더보기'),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: _buildStatItem('포인트', _totalPoints.toString(), Icons.stars, Colors.blue),
+                  child: _buildStatItem('총 포인트', _totalPoints.toString(), Icons.stars, Colors.blue),
                 ),
                 Expanded(
                   child: _buildStatItem('연속일', '${_consecutiveDays}일', Icons.local_fire_department, Colors.orange),
@@ -218,22 +263,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildMenuTile(
-            icon: Icons.person,
-            title: '닉네임 변경',
-            onTap: _changeNickname,
+            icon: Icons.alarm,
+            title: '알람 설정',
+            onTap: _alarmSettings,
           ),
           const Divider(height: 1),
-          _buildMenuTile(
-            icon: Icons.lock,
-            title: '비밀번호 변경',
-            onTap: _changePassword,
-          ),
-          const Divider(height: 1),
-          _buildMenuTile(
-            icon: Icons.notifications,
-            title: '알림 설정',
-            onTap: _notificationSettings,
-          ),
+          // 테마 설정 추가
+          const ThemeToggleButton(showLabel: true),
           const Divider(height: 1),
           _buildMenuTile(
             icon: Icons.help,
@@ -350,6 +386,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildDangerZone() {
+    return Card(
+      color: Colors.red[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red[700], size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '위험 구역',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red[700],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _deleteAccount,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text(
+                  '탈퇴하기',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSettings() {
     showModalBottomSheet(
       context: context,
@@ -366,14 +446,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _logout();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text('회원 탈퇴'),
-              onTap: () {
-                Navigator.pop(context);
-                _deleteAccount();
-              },
-            ),
           ],
         ),
       ),
@@ -381,17 +453,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editProfile() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('프로필 편집'),
-        content: const Text('프로필 편집 기능은 추후 구현됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '프로필 수정',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text('닉네임 변경'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _changeNickname();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock),
+                title: const Text('비밀번호 변경'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _changePassword();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications),
+                title: const Text('알림 설정'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _notificationSettings();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -418,6 +531,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => AlertDialog(
         title: const Text('비밀번호 변경'),
         content: const Text('비밀번호 변경 기능은 추후 구현됩니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _alarmSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('알람 설정'),
+        content: const Text('알람 설정 기능은 추후 구현됩니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
