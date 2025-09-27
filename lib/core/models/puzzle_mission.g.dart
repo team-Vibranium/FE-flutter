@@ -15,7 +15,6 @@ PuzzleMission _$PuzzleMissionFromJson(Map<String, dynamic> json) =>
           .map((e) => e as String)
           .toList(),
       correctAnswer: json['correctAnswer'] as String,
-      timeLimitSeconds: (json['timeLimitSeconds'] as num).toInt(),
     );
 
 Map<String, dynamic> _$PuzzleMissionToJson(PuzzleMission instance) =>
@@ -25,7 +24,6 @@ Map<String, dynamic> _$PuzzleMissionToJson(PuzzleMission instance) =>
       'question': instance.question,
       'options': instance.options,
       'correctAnswer': instance.correctAnswer,
-      'timeLimitSeconds': instance.timeLimitSeconds,
     };
 
 const _$PuzzleTypeEnumMap = {

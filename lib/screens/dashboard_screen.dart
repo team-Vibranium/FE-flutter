@@ -5,9 +5,12 @@ import 'stats_screen.dart';
 import 'profile_screen.dart';
 import 'call_history_screen.dart';
 import 'avatar_customize_screen.dart';
+import 'ai_call_screen.dart';
 import '../core/providers/dashboard_provider.dart';
+import '../core/providers/alarm_provider.dart';
 import '../core/models/alarm.dart';
 import '../core/widgets/buttons/theme_toggle_button.dart';
+import '../services/openai_test_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -42,6 +45,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
       parent: _switchAnimationController,
       curve: Curves.easeInOut,
     );
+  }
+
+  // 요일 변환 헬퍼 함수
+  List<String> _getDayOfWeekKorean(int weekday) {
+    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    return [weekdays[weekday - 1]]; // weekday는 1부터 시작 (월요일=1)
   }
 
   @override
@@ -91,16 +100,145 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
         ],
       ),
       floatingActionButton: dashboardState.currentIndex == 0
-          ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AlarmAddScreen(
-                      onAlarmSaved: (alarm) {
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // OpenAI API 테스트 버튼
+                FloatingActionButton.small(
+                  heroTag: "openai_test",
+                  onPressed: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('OpenAI API 연결 테스트 중...')),
+                    );
+                    
+                    final result = await OpenAITestService().testConnection();
+                    
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result['message']),
+                          backgroundColor: result['success'] ? Colors.green : Colors.red,
+                          duration: const Duration(seconds: 5),
+                        ),
+                      );
+                      
+                      if (result['success']) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('✅ API 연결 성공!'),
+                            content: Text('AI 응답: ${result['response']}'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('확인'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  backgroundColor: Colors.green,
+                  child: const Icon(Icons.api, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                // 1분 후 알람 테스트 버튼
+                FloatingActionButton.small(
+                  heroTag: "alarm_test_10sec",
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final testTime = now.add(const Duration(seconds: 10)); // 10초 후로 변경
+                    
+                    // 직접 알람 스케줄링 (요일 계산 우회)
+                    try {
+                      final alarmNotifier = ref.read(alarmStateProvider.notifier);
+                      await alarmNotifier.scheduleAlarm(
+                        testTime,
+                        '🔔 즉시 테스트 알람',
+                        '10초 후 테스트 알람입니다!',
+                        customId: (DateTime.now().millisecondsSinceEpoch ~/ 1000) % 100000,
+                        alarmType: '테스트알람',
+                      );
+                      
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✅ 즉시 테스트 알람 설정 완료!\n10초 후에 울립니다.'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('❌ 테스트 알람 설정 실패: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  backgroundColor: Colors.orange,
+                  child: const Icon(Icons.timer_10, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                // 일반 알람 테스트 버튼 (개발용)
+                FloatingActionButton.small(
+                  heroTag: "normal_alarm_test",
+                  onPressed: () {
+                    // 일반 알람 화면으로 바로 이동
+                    Navigator.pushNamed(
+                      context,
+                      '/alarm_ring',
+                      arguments: {
+                        'alarmType': '일반알람',
+                        'alarmTime': '지금',
+                        'alarm': null,
+                      },
+                    );
+                  },
+                  backgroundColor: Colors.orange,
+                  child: const Icon(Icons.alarm, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                // AI 통화 테스트 버튼 (개발용)
+                FloatingActionButton.small(
+                  heroTag: "ai_call_test",
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AICallScreen(
+                          alarmTitle: '테스트 알람',
+                          onCallEnded: () {
+                            debugPrint('AI call test ended');
+                          },
+                          onAlarmDismissed: () {
+                            debugPrint('Test alarm dismissed');
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  backgroundColor: Colors.deepPurple,
+                  child: const Icon(Icons.smart_toy, color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                // 기존 알람 추가 버튼
+                FloatingActionButton(
+                  heroTag: "add_alarm",
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AlarmAddScreen(
+                      onAlarmSaved: (alarm) async {
                         // Map을 Alarm 객체로 변환
                         final alarmObj = Alarm(
-                          id: alarm['id'] ?? DateTime.now().millisecondsSinceEpoch,
+                          id: alarm['id'] ?? ((DateTime.now().millisecondsSinceEpoch ~/ 1000) % 10000),
                           time: alarm['time'] ?? '07:00',
                           days: List<String>.from(alarm['days'] ?? ['월', '화', '수', '목', '금']),
                           type: alarm['type'] == '전화알람' ? AlarmType.call : AlarmType.normal,
@@ -108,7 +246,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                           tag: alarm['tag'] ?? '알람',
                           successRate: alarm['successRate'] ?? 0,
                         );
-                        ref.read(dashboardProvider.notifier).addAlarm(alarmObj);
+                        await ref.read(dashboardProvider.notifier).addAlarm(alarmObj);
                         // 애니메이션 시작
                         _animationController.forward().then((_) {
                           _animationController.reset();
@@ -119,6 +257,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                 );
               },
               child: const Icon(Icons.add),
+            ),
+              ],
             )
           : null,
     );
@@ -516,7 +656,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                       MaterialPageRoute(
                         builder: (context) => AlarmAddScreen(
                           alarmData: alarm.toJson(),
-                          onAlarmSaved: (updatedAlarm) {
+                          onAlarmSaved: (updatedAlarm) async {
                             final updatedAlarmObj = Alarm(
                               id: updatedAlarm['id'] ?? alarm.id,
                               time: updatedAlarm['time'] ?? alarm.time,
@@ -526,7 +666,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                               tag: updatedAlarm['tag'] ?? alarm.tag,
                               successRate: updatedAlarm['successRate'] ?? alarm.successRate,
                             );
-                            ref.read(dashboardProvider.notifier).updateAlarm(updatedAlarmObj);
+                            await ref.read(dashboardProvider.notifier).updateAlarm(updatedAlarmObj);
                             _animationController.forward().then((_) {
                               _animationController.reset();
                             });
@@ -644,12 +784,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                           scale: 0.8, // 스위치 크기 줄임
                           child: Switch(
                             value: alarm.isEnabled,
-                            onChanged: (value) {
+                            onChanged: (value) async {
                               _switchAnimationController.forward().then((_) {
                                 _switchAnimationController.reverse();
                               });
                               
-                              ref.read(dashboardProvider.notifier).toggleAlarm(alarm.id);
+                              await ref.read(dashboardProvider.notifier).toggleAlarm(alarm.id);
                               
                               Future.delayed(const Duration(milliseconds: 150), () {
                                 _animationController.forward().then((_) {

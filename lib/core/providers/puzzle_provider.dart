@@ -10,8 +10,6 @@ class PuzzleState {
   final String? selectedAnswer;
   final bool isCompleted;
   final bool isCorrect;
-  final int timeRemaining;
-  final bool isTimeUp;
   final String? error;
 
   const PuzzleState({
@@ -19,12 +17,10 @@ class PuzzleState {
     this.selectedAnswer,
     this.isCompleted = false,
     this.isCorrect = false,
-    this.timeRemaining = 0,
-    this.isTimeUp = false,
     this.error,
   });
 
-  bool get isActive => currentMission != null && !isCompleted && !isTimeUp;
+  bool get isActive => currentMission != null && !isCompleted;
   bool get canSubmit => selectedAnswer != null && !isCompleted;
 
   PuzzleState copyWith({
@@ -32,8 +28,6 @@ class PuzzleState {
     String? selectedAnswer,
     bool? isCompleted,
     bool? isCorrect,
-    int? timeRemaining,
-    bool? isTimeUp,
     String? error,
   }) {
     return PuzzleState(
@@ -41,8 +35,6 @@ class PuzzleState {
       selectedAnswer: selectedAnswer ?? this.selectedAnswer,
       isCompleted: isCompleted ?? this.isCompleted,
       isCorrect: isCorrect ?? this.isCorrect,
-      timeRemaining: timeRemaining ?? this.timeRemaining,
-      isTimeUp: isTimeUp ?? this.isTimeUp,
       error: error ?? this.error,
     );
   }
@@ -55,9 +47,7 @@ class PuzzleNotifier extends StateNotifier<PuzzleState> {
     final mission = PuzzleMission.generateRandom();
     state = PuzzleState(
       currentMission: mission,
-      timeRemaining: mission.timeLimitSeconds,
     );
-    _startTimer();
   }
 
   void selectAnswer(String answer) {
@@ -76,22 +66,6 @@ class PuzzleNotifier extends StateNotifier<PuzzleState> {
     );
   }
 
-  void _startTimer() {
-    if (state.currentMission == null) return;
-
-    Future.delayed(const Duration(seconds: 1), () {
-      if (state.timeRemaining > 0 && !state.isCompleted) {
-        state = state.copyWith(timeRemaining: state.timeRemaining - 1);
-        _startTimer();
-      } else if (state.timeRemaining == 0 && !state.isCompleted) {
-        state = state.copyWith(
-          isTimeUp: true,
-          isCompleted: true,
-          isCorrect: false,
-        );
-      }
-    });
-  }
 
   void reset() {
     state = const PuzzleState();
