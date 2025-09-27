@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- WebRTC 및 오디오 권한 -->
+	<key>NSCameraUsageDescription</key>
+	<string>AningCall needs camera access for video calls</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AningCall needs microphone access for AI voice calls</string>
 </dict>
 </plist>
