@@ -17,6 +17,8 @@ class AppTextField extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onTap;
   final Function(String)? onChanged;
+  final TextInputAction? textInputAction;
+  final Function(String)? onSubmitted;
 
   const AppTextField({
     super.key,
@@ -32,6 +34,8 @@ class AppTextField extends StatelessWidget {
     this.enabled = true,
     this.onTap,
     this.onChanged,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -45,6 +49,8 @@ class AppTextField extends StatelessWidget {
       enabled: enabled,
       onTap: onTap,
       onChanged: onChanged,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onSubmitted,
       style: Theme.of(context).textTheme.bodyLarge,
       decoration: InputDecoration(
         labelText: label,

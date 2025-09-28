@@ -1,23 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart';
-import '../models/user.dart';
-import '../repositories/auth_repository.dart';
-import '../repositories/mock_auth_repository.dart';
-import '../environment/environment.dart';
-import '../constants/app_constants.dart';
+import '../models/api_models.dart';
+import '../services/api_service.dart';
 
-final authRepositoryProvider = Provider<dynamic>((ref) {
-  if (EnvironmentConfig.isDevelopment) {
-    return MockAuthRepository();
-  } else {
-    // 실제 API Repository 사용
-    return AuthRepository(dio: Dio());
-  }
+final authServiceProvider = Provider<ApiService>((ref) {
+  return ApiService();
 });
 
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.read(authRepositoryProvider));
+  return AuthNotifier(ref.read(authServiceProvider));
 });
 
 class AuthState {
@@ -52,9 +42,9 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  final dynamic _authRepository;
+  final ApiService _apiService;
 
-  AuthNotifier(this._authRepository) : super(const AuthState()) {
+  AuthNotifier(this._apiService) : super(const AuthState()) {
     _loadStoredAuth();
   }
 
@@ -62,15 +52,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true);
     
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(AppConstants.tokenKey);
-      
-      if (token != null) {
-        final response = await _authRepository.getCurrentUser(token);
-        if (response['success'] && response['data'] != null) {
+      if (_apiService.isAuthenticated) {
+        final response = await _apiService.user.getMyInfo();
+        if (response.success && response.data != null) {
           state = state.copyWith(
-            user: response['data'],
-            token: token,
+            user: response.data,
+            token: _apiService.auth.accessToken,
             isLoading: false,
           );
         } else {
@@ -88,37 +75,53 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> login(String email, String password) async {
+    print('🔐 로그인 시작: $email');
     state = state.copyWith(isLoading: true, error: null);
     
     try {
-      final response = await _authRepository.login(email, password);
+      final loginRequest = LoginRequest(email: email, password: password);
+      final response = await _apiService.auth.login(loginRequest);
       
-      if (response['success'] && response['data'] != null) {
-        final token = response['data'];
-        final userResponse = await _authRepository.getCurrentUser(token);
+      print('📡 로그인 응답 상태: ${response.success}');
+      print('📄 로그인 응답 데이터: ${response.data}');
+      print('💬 로그인 응답 메시지: ${response.message}');
+      
+      if (response.success && response.data != null) {
+        // 로그인 응답에서 사용자 정보를 직접 사용
+        final loginResponse = response.data!;
         
-        if (userResponse['success'] && userResponse['data'] != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.tokenKey, token);
-          await prefs.setInt(AppConstants.userIdKey, userResponse['data'].id);
-          await prefs.setString(AppConstants.userNicknameKey, userResponse['data'].nickname);
-          await prefs.setInt(AppConstants.userPointsKey, userResponse['data'].points);
-          
-          state = state.copyWith(
-            user: userResponse['data'],
-            token: token,
-            isLoading: false,
-          );
-          return true;
-        }
+        print('✅ 로그인 성공!');
+        print('👤 사용자 정보: ${loginResponse.user}');
+        print('🔑 토큰: ${loginResponse.token.substring(0, 20)}...');
+        
+        print('🔄 상태 업데이트 전: isAuthenticated = ${state.isAuthenticated}');
+        print('🔄 업데이트 전 user: ${state.user}');
+        print('🔄 업데이트 전 token: ${state.token != null ? '있음' : '없음'}');
+        
+        final newState = state.copyWith(
+          user: loginResponse.user,
+          token: loginResponse.token,
+          isLoading: false,
+        );
+        
+        print('🔄 새 상태: isAuthenticated = ${newState.isAuthenticated}');
+        print('🔄 새 상태 user: ${newState.user}');
+        print('🔄 새 상태 token: ${newState.token != null ? '있음' : '없음'}');
+        
+        state = newState;
+        
+        print('🎉 인증 상태 업데이트 완료 - 최종 isAuthenticated: ${state.isAuthenticated}');
+        return true;
       }
       
+      print('❌ 로그인 실패: ${response.message}');
       state = state.copyWith(
         isLoading: false,
-        error: response['message'] ?? '로그인에 실패했습니다.',
+        error: response.message ?? '로그인에 실패했습니다.',
       );
       return false;
     } catch (e) {
+      print('💥 로그인 예외 발생: $e');
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -128,25 +131,47 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> signup(String email, String password, String nickname) async {
+    print('📝 회원가입 시작: $email, $nickname');
     state = state.copyWith(isLoading: true, error: null);
     
     try {
-      final response = await _authRepository.signup(email, password, nickname);
+      final registerRequest = RegisterRequest(
+        email: email,
+        password: password,
+        nickname: nickname,
+      );
+      final response = await _apiService.auth.register(registerRequest);
       
-      if (response['success'] && response['data'] != null) {
+      print('📡 회원가입 응답 상태: ${response.success}');
+      print('📄 회원가입 응답 데이터: ${response.data}');
+      print('💬 회원가입 응답 메시지: ${response.message}');
+      
+      if (response.success && response.data != null) {
+        // 회원가입 응답에서 사용자 정보를 직접 사용
+        final loginResponse = response.data!;
+        
+        print('✅ 회원가입 성공!');
+        print('👤 사용자 정보: ${loginResponse.user}');
+        print('🔑 토큰: ${loginResponse.token.substring(0, 20)}...');
+        
         state = state.copyWith(
-          user: response['data'],
+          user: loginResponse.user,
+          token: loginResponse.token,
           isLoading: false,
         );
+        
+        print('🎉 인증 상태 업데이트 완료 - isAuthenticated: ${state.isAuthenticated}');
         return true;
       }
       
+      print('❌ 회원가입 실패: ${response.message}');
       state = state.copyWith(
         isLoading: false,
-        error: response['message'] ?? '회원가입에 실패했습니다.',
+        error: response.message ?? '회원가입에 실패했습니다.',
       );
       return false;
     } catch (e) {
+      print('💥 회원가입 예외 발생: $e');
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -156,11 +181,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.tokenKey);
-    await prefs.remove(AppConstants.userIdKey);
-    await prefs.remove(AppConstants.userNicknameKey);
-    await prefs.remove(AppConstants.userPointsKey);
+    try {
+      await _apiService.auth.logout();
+    } catch (e) {
+      // 로그아웃 실패해도 로컬 상태는 초기화
+      print('로그아웃 API 호출 실패: $e');
+    }
     
     state = const AuthState();
   }

@@ -1,7 +1,7 @@
 class AppConstants {
-  // API 관련 상수
-  static const String baseUrl = 'https://api.aningcall.com';
-  static const String devBaseUrl = 'http://localhost:8080';
+  // API 관련 상수는 이제 EnvironmentConfig에서 관리됩니다
+  // static const String baseUrl = 'https://api.aningcall.com'; // 삭제됨 - EnvironmentConfig.baseUrl 사용
+  // static const String devBaseUrl = 'http://localhost:8080'; // 삭제됨 - EnvironmentConfig.baseUrl 사용
   
   // 로컬 저장소 키
   static const String tokenKey = 'auth_token';

@@ -61,38 +61,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 
   void _loadInitialData() {
-    // 더미 알람 데이터 로드
-    final mockAlarms = [
-      Alarm(
-        id: 1,
-        time: '07:00',
-        days: ['월', '화', '수', '목', '금'],
-        type: AlarmType.normal,
-        isEnabled: true,
-        tag: '운동',
-        successRate: 85,
-      ),
-      Alarm(
-        id: 2,
-        time: '08:30',
-        days: ['토', '일'],
-        type: AlarmType.call,
-        isEnabled: false,
-        tag: '회의',
-        successRate: 60,
-      ),
-      Alarm(
-        id: 3,
-        time: '06:45',
-        days: ['월', '수', '금'],
-        type: AlarmType.normal,
-        isEnabled: true,
-        tag: '독서',
-        successRate: 90,
-      ),
-    ];
-
-    state = state.copyWith(alarms: mockAlarms);
+    // 실제 알람 데이터는 API에서 로드하거나 로컬 저장소에서 가져옴
+    // 초기에는 빈 리스트로 시작
+    state = state.copyWith(alarms: []);
   }
 
   void setCurrentIndex(int index) {

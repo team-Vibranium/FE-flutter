@@ -10,7 +10,9 @@ import '../core/providers/dashboard_provider.dart';
 import '../core/providers/alarm_provider.dart';
 import '../core/models/alarm.dart';
 import '../core/widgets/buttons/theme_toggle_button.dart';
-import '../services/openai_test_service.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/services/api_service.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -68,9 +70,58 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
       appBar: AppBar(
         title: const Text('AningCall'),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        actions: const [
-          ThemeToggleButton(),
-          SizedBox(width: 8),
+        actions: [
+          const ThemeToggleButton(),
+          const SizedBox(width: 8),
+          // 로그아웃 버튼
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.account_circle),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                // 로그아웃 확인 다이얼로그
+                final shouldLogout = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('로그아웃'),
+                    content: const Text('정말 로그아웃 하시겠습니까?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('취소'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('로그아웃'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (shouldLogout == true) {
+                  await ref.read(authStateProvider.notifier).logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout),
+                    SizedBox(width: 8),
+                    Text('로그아웃'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(dashboardState),
@@ -103,44 +154,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // OpenAI API 테스트 버튼
+                // 서버 연결 테스트 버튼
                 FloatingActionButton.small(
-                  heroTag: "openai_test",
+                  heroTag: "server_test",
                   onPressed: () async {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('OpenAI API 연결 테스트 중...')),
+                      const SnackBar(content: Text('서버 연결 테스트 중...')),
                     );
                     
-                    final result = await OpenAITestService().testConnection();
+                    final result = await ApiService().checkServerConnection();
                     
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(result['message']),
-                          backgroundColor: result['success'] ? Colors.green : Colors.red,
+                          backgroundColor: result['isConnected'] ? Colors.green : Colors.red,
                           duration: const Duration(seconds: 5),
                         ),
                       );
                       
-                      if (result['success']) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('✅ API 연결 성공!'),
-                            content: Text('AI 응답: ${result['response']}'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('확인'),
-                              ),
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text(result['isConnected'] ? '✅ 서버 연결 성공!' : '❌ 서버 연결 실패'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('서버 URL: ${result['serverUrl']}'),
+                              Text('응답 시간: ${result['responseTime']}ms'),
+                              Text('상태: ${result['status']}'),
+                              if (result['error'] != null)
+                                Text('오류: ${result['error']}'),
                             ],
                           ),
-                        );
-                      }
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('확인'),
+                            ),
+                          ],
+                        ),
+                      );
                     }
                   },
-                  backgroundColor: Colors.green,
-                  child: const Icon(Icons.api, color: Colors.white),
+                  backgroundColor: Colors.blue,
+                  child: const Icon(Icons.cloud, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 // 1분 후 알람 테스트 버튼
