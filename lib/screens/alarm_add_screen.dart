@@ -51,11 +51,23 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
       final alarm = widget.alarmData!;
       
       // 시간 설정
-      final timeParts = alarm['time'].split(':');
-      _selectedTime = TimeOfDay(
-        hour: int.parse(timeParts[0]),
-        minute: int.parse(timeParts[1]),
-      );
+      if (alarm['time'] != null) {
+        // time 필드가 있는 경우
+        final timeParts = alarm['time'].split(':');
+        _selectedTime = TimeOfDay(
+          hour: int.parse(timeParts[0]),
+          minute: int.parse(timeParts[1]),
+        );
+      } else if (alarm['hour'] != null && alarm['minute'] != null) {
+        // hour와 minute 필드가 있는 경우
+        _selectedTime = TimeOfDay(
+          hour: alarm['hour'] as int,
+          minute: alarm['minute'] as int,
+        );
+      } else {
+        // 기본값 설정
+        _selectedTime = TimeOfDay.now();
+      }
       
       // 알람 타입 설정 (enum을 문자열로 변환)
       if (alarm['type'] == 'NORMAL' || alarm['type'] == '일반알람') {
@@ -66,60 +78,94 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
       
       // 요일 설정
       _selectedDays.clear();
-      _selectedDays.addAll(List<String>.from(alarm['days']));
+      if (alarm['days'] != null) {
+        _selectedDays.addAll(List<String>.from(alarm['days']));
+      } else if (alarm['repeatDays'] != null) {
+        // repeatDays가 숫자 리스트인 경우 (1=월요일, 7=일요일)
+        final repeatDays = alarm['repeatDays'] as List<dynamic>?;
+        if (repeatDays != null && repeatDays.isNotEmpty) {
+          for (final day in repeatDays) {
+            if (day is int) {
+              switch (day) {
+                case 1: _selectedDays.add('월'); break;
+                case 2: _selectedDays.add('화'); break;
+                case 3: _selectedDays.add('수'); break;
+                case 4: _selectedDays.add('목'); break;
+                case 5: _selectedDays.add('금'); break;
+                case 6: _selectedDays.add('토'); break;
+                case 7: _selectedDays.add('일'); break;
+              }
+            } else if (day is String) {
+              _selectedDays.add(day);
+            }
+          }
+        }
+      }
       
       // 제목 설정
       if (alarm['title'] != null) {
-        _alarmTitleController.text = alarm['title'];
+        _alarmTitleController.text = alarm['title'].toString();
       } else if (alarm['tag'] != null) {
-        _alarmTitleController.text = alarm['tag'];
+        _alarmTitleController.text = alarm['tag'].toString();
+      } else if (alarm['label'] != null) {
+        _alarmTitleController.text = alarm['label'].toString();
       } else {
         _alarmTitleController.text = '알람';
       }
       
       // 상황 설정
       if (alarm['situation'] != null) {
-        _situationController.text = alarm['situation'];
+        _situationController.text = alarm['situation'].toString();
+      } else if (alarm['label'] != null) {
+        _situationController.text = alarm['label'].toString();
       }
       
       // 미션 설정
       if (alarm['mission'] != null) {
-        _selectedMission = alarm['mission'];
+        _selectedMission = alarm['mission'].toString();
       }
       
       // 사운드 설정
       if (alarm['sound'] != null) {
-        _selectedSound = alarm['sound'];
+        _selectedSound = alarm['sound'].toString();
+      } else if (alarm['soundPath'] != null) {
+        _selectedSound = alarm['soundPath'].toString();
       }
       
       // 목소리 설정
       if (alarm['voice'] != null) {
-        _selectedVoice = alarm['voice'];
+        _selectedVoice = alarm['voice'].toString();
       }
       
       // 컨셉 설정
       if (alarm['concept'] != null) {
-        _selectedConcept = alarm['concept'];
+        _selectedConcept = alarm['concept'].toString();
       }
       
       // 볼륨 설정
       if (alarm['volume'] != null) {
-        _volume = alarm['volume'].toDouble();
+        _volume = (alarm['volume'] is double) ? alarm['volume'] : alarm['volume'].toDouble();
       }
       
       // 진동 설정
       if (alarm['isVibrationEnabled'] != null) {
-        _isVibrationEnabled = alarm['isVibrationEnabled'];
+        _isVibrationEnabled = alarm['isVibrationEnabled'] as bool;
+      } else if (alarm['vibrate'] != null) {
+        _isVibrationEnabled = alarm['vibrate'] as bool;
       }
       
       // 스누즈 설정
       if (alarm['snoozeMinutes'] != null) {
-        _snoozeMinutes = alarm['snoozeMinutes'];
+        _snoozeMinutes = alarm['snoozeMinutes'] is int ? alarm['snoozeMinutes'] : int.tryParse(alarm['snoozeMinutes'].toString()) ?? 5;
+      } else if (alarm['snoozeInterval'] != null) {
+        _snoozeMinutes = alarm['snoozeInterval'] is int ? alarm['snoozeInterval'] : int.tryParse(alarm['snoozeInterval'].toString()) ?? 5;
       }
       
       if (alarm['snoozeCount'] != null) {
-        _snoozeCount = alarm['snoozeCount'];
+        _snoozeCount = alarm['snoozeCount'] is int ? alarm['snoozeCount'] : int.tryParse(alarm['snoozeCount'].toString()) ?? 3;
       }
+      
+      // 스누즈 활성화 설정은 _snoozeCount로 대체 (0이면 비활성화)
       
     } else {
       // 새 알람일 때 기본값 설정

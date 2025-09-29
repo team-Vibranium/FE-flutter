@@ -44,6 +44,9 @@ class LocalAlarm {
   
   /// 알람 라벨/메모
   final String? label;
+  
+  /// 알람 타입 ('normal', 'morning_call', 'mission' 등)
+  final String? type;
 
   const LocalAlarm({
     required this.id,
@@ -59,6 +62,7 @@ class LocalAlarm {
     required this.createdAt,
     required this.updatedAt,
     this.label,
+    this.type = 'normal',
   });
 
   /// JSON에서 객체 생성
@@ -152,6 +156,7 @@ class LocalAlarm {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? label,
+    String? type,
   }) {
     return LocalAlarm(
       id: id ?? this.id,
@@ -167,6 +172,7 @@ class LocalAlarm {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       label: label ?? this.label,
+      type: type ?? this.type,
     );
   }
 
