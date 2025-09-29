@@ -94,7 +94,8 @@ void main() async {
   }
   
   // 모닝콜 알람 서비스 초기화 (API 키는 환경변수에서)
-  final gptApiKey = dotenv.env['GPT_API_KEY'] ?? '';
+  final String gptApiKey = dotenv.env['OPENAI_API_KEY'] ?? dotenv.env['GPT_API_KEY'] ?? '';
+  print('🔑 GPT API 키 설정됨: ${gptApiKey.isNotEmpty}');
   if (gptApiKey.isNotEmpty) {
     try {
       await MorningCallAlarmService().initialize(
