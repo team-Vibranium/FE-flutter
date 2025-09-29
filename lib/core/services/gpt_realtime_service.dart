@@ -104,8 +104,8 @@ class GPTRealtimeService {
     // PeerConnection 생성
     _peerConnection = await createPeerConnection(configuration);
     
-    // 로컬 미디어 스트림 획득
-    _localStream = await navigator.mediaDevices.getUserMedia({
+    // 로컬 미디어 스트림 획득 (Flutter WebRTC 방식)
+    Map<String, dynamic> mediaConstraints = {
       'audio': {
         'echoCancellation': true,
         'noiseSuppression': true,
@@ -114,7 +114,9 @@ class GPTRealtimeService {
         'channelCount': 1,
       },
       'video': false,
-    });
+    };
+    
+    _localStream = await MediaDevices.getUserMedia(mediaConstraints);
 
     // 로컬 스트림을 PeerConnection에 추가
     _localStream!.getTracks().forEach((track) {

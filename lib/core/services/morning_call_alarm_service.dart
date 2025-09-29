@@ -19,9 +19,15 @@ class MorningCallAlarmService {
   
   bool _isInitialized = false;
   String? _gptApiKey;
-  String _userName = '예훈'; // 기본 사용자 이름
+  String _userName = '사용자'; // 기본 사용자 이름
 
-  /// 서비스 초기화
+  /// 사용자 이름 업데이트
+  void updateUserName(String userName) {
+    _userName = userName;
+    print('👤 사용자 이름 업데이트: $userName');
+  }
+
+  /// 서비스 초기화 
   Future<void> initialize({
     required String gptApiKey,
     String? userName,
@@ -97,7 +103,7 @@ class MorningCallAlarmService {
         await startMorningCall(alarmTitle: alarmTitle);
         
       } catch (e) {
-        print('❌ 알림 처리 오류: $e');
+        print('알림 처리 오류: $e');
       }
     }
   }
@@ -110,7 +116,7 @@ class MorningCallAlarmService {
     };
 
     _gptService.onError = (error) {
-      print('❌ GPT 오류: $error');
+      print('GPT 오류: $error');
       // 오류 처리 로직
     };
 
@@ -137,34 +143,58 @@ class MorningCallAlarmService {
     List<int>? repeatDays, // 1=월요일, 7=일요일
     String? description,
   }) async {
-    if (!_isInitialized) {
-      throw Exception('서비스가 초기화되지 않았습니다');
-    }
-
-    final alarmId = DateTime.now().millisecondsSinceEpoch;
+    print('🌅 scheduleMorningCallAlarm 호출됨');
+    print('   제목: $title');
+    print('   예약 시간: $scheduledTime');
+    print('   반복 요일: $repeatDays');
+    print('   설명: $description');
     
-    // 알람 데이터 저장
-    await _saveAlarmData(alarmId, {
-      'id': alarmId,
-      'title': title,
-      'description': description,
-      'scheduledTime': scheduledTime.toIso8601String(),
-      'repeatDays': repeatDays,
-      'isActive': true,
-      'createdAt': DateTime.now().toIso8601String(),
-    });
+    try {
+      if (!_isInitialized) {
+        print('서비스가 초기화되지 않음');
+        throw Exception('서비스가 초기화되지 않았습니다');
+      }
+      print('✅ 서비스 초기화 상태 확인 완료');
 
-    // 로컬 알림 예약
-    await _scheduleNotification(
-      alarmId,
-      title,
-      description ?? '모닝콜 알람이 울렸습니다',
-      scheduledTime,
-      repeatDays,
-    );
+      final alarmId = DateTime.now().millisecondsSinceEpoch;
+      print('🆔 생성된 알람 ID: $alarmId');
+      
+      // 알람 데이터 저장
+      print('💾 알람 데이터 저장 시작...');
+      final alarmData = {
+        'id': alarmId,
+        'title': title,
+        'description': description,
+        'scheduledTime': scheduledTime.toIso8601String(),
+        'repeatDays': repeatDays,
+        'isActive': true,
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      print('📝 저장할 알람 데이터: $alarmData');
+      
+      await _saveAlarmData(alarmId, alarmData);
+      print('✅ 알람 데이터 저장 완료');
 
-    print('⏰ 모닝콜 알람 예약됨: $title at ${scheduledTime.toString()}');
-    return alarmId;
+      // 로컬 알림 예약
+      print('🔔 로컬 알림 예약 시작...');
+      await _scheduleNotification(
+        alarmId,
+        title,
+        description ?? '모닝콜 알람이 울렸습니다',
+        scheduledTime,
+        repeatDays,
+      );
+      print('✅ 로컬 알림 예약 완료');
+
+      print('🎉 모닝콜 알람 예약 성공: $title at ${scheduledTime.toString()}');
+      return alarmId;
+      
+    } catch (e, stackTrace) {
+      print('scheduleMorningCallAlarm 실행 중 오류 발생:');
+      print('   오류 메시지: $e');
+      print('   스택 트레이스: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 로컬 알림 예약
@@ -175,20 +205,72 @@ class MorningCallAlarmService {
     DateTime scheduledTime,
     List<int>? repeatDays,
   ) async {
-    final payload = jsonEncode({
-      'id': id,
-      'title': title,
-      'type': 'morning_call',
-    });
+    print('🔔 _scheduleNotification 호출됨');
+    print('   알람 ID: $id');
+    print('   제목: $title');
+    print('   내용: $body');
+    print('   예약 시간: $scheduledTime');
+    print('   반복 요일: $repeatDays');
+    
+    try {
+      final payload = jsonEncode({
+        'id': id,
+        'title': title,
+        'type': 'morning_call',
+      });
+      print('   페이로드: $payload');
 
-    if (repeatDays != null && repeatDays.isNotEmpty) {
-      // 반복 알람
-      for (final day in repeatDays) {
+      if (repeatDays != null && repeatDays.isNotEmpty) {
+        print('🔄 반복 알람 설정 시작 (${repeatDays.length}개 요일)');
+        // 반복 알람
+        for (final day in repeatDays) {
+          print('   📅 요일 $day 알람 설정 중...');
+          final notificationId = id + day;
+          final scheduledDateTime = _nextInstanceOfWeekday(scheduledTime, day);
+          print('     알림 ID: $notificationId');
+          print('     예약 시간: $scheduledDateTime');
+          
+          await _notifications.zonedSchedule(
+            notificationId, // 각 요일별로 고유 ID
+            title,
+            body,
+            scheduledDateTime,
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'morning_call_channel',
+                '모닝콜 알람',
+                channelDescription: 'GPT와 함께하는 모닝콜 알람',
+                importance: Importance.max,
+                priority: Priority.high,
+                showWhen: true,
+                enableVibration: true,
+                playSound: true,
+                sound: RawResourceAndroidNotificationSound('alarm_sound'),
+              ),
+              iOS: DarwinNotificationDetails(
+                sound: 'alarm_sound.wav',
+                presentAlert: true,
+                presentBadge: true,
+                presentSound: true,
+              ),
+            ),
+            payload: payload,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+          );
+          print('     ✅ 요일 $day 알람 설정 완료');
+        }
+        print('✅ 모든 반복 알람 설정 완료');
+      } else {
+        print('📅 일회성 알람 설정 시작...');
+        final scheduledDateTime = tz.TZDateTime.from(scheduledTime, tz.local);
+        print('   예약 시간: $scheduledDateTime');
+        
         await _notifications.zonedSchedule(
-          id + day, // 각 요일별로 고유 ID
+          id,
           title,
           body,
-          _nextInstanceOfWeekday(scheduledTime, day),
+          scheduledDateTime,
           const NotificationDetails(
             android: AndroidNotificationDetails(
               'morning_call_channel',
@@ -210,38 +292,15 @@ class MorningCallAlarmService {
           ),
           payload: payload,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         );
+        print('✅ 일회성 알람 설정 완료');
       }
-    } else {
-      // 일회성 알람
-      await _notifications.zonedSchedule(
-        id,
-        title,
-        body,
-        tz.TZDateTime.from(scheduledTime, tz.local),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'morning_call_channel',
-            '모닝콜 알람',
-            channelDescription: 'GPT와 함께하는 모닝콜 알람',
-            importance: Importance.max,
-            priority: Priority.high,
-            showWhen: true,
-            enableVibration: true,
-            playSound: true,
-            sound: RawResourceAndroidNotificationSound('alarm_sound'),
-          ),
-          iOS: DarwinNotificationDetails(
-            sound: 'alarm_sound.wav',
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
-        payload: payload,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
+      
+    } catch (e, stackTrace) {
+      print('_scheduleNotification 실행 중 오류 발생:');
+      print('   오류 메시지: $e');
+      print('   스택 트레이스: $stackTrace');
+      rethrow;
     }
   }
 
@@ -256,9 +315,26 @@ class MorningCallAlarmService {
 
   /// 알람 데이터 저장
   Future<void> _saveAlarmData(int alarmId, Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    final alarmKey = 'morning_call_alarm_$alarmId';
-    await prefs.setString(alarmKey, jsonEncode(data));
+    print('💾 _saveAlarmData 호출됨');
+    print('   알람 ID: $alarmId');
+    print('   데이터: $data');
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final alarmKey = 'morning_call_alarm_$alarmId';
+      print('   저장 키: $alarmKey');
+      
+      final jsonString = jsonEncode(data);
+      print('   JSON 문자열: $jsonString');
+      
+      await prefs.setString(alarmKey, jsonString);
+      print('SharedPreferences에 알람 데이터 저장 완료');
+    } catch (e, stackTrace) {
+      print('saveAlarmData 실행 중 오류 발생:');
+      print('   오류 메시지: $e');
+      print('   스택 트레이스: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 알람 데이터 로드
@@ -333,7 +409,7 @@ class MorningCallAlarmService {
       );
       
     } catch (e) {
-      print('❌ 모닝콜 시작 실패: $e');
+      print('모닝콜 시작 실패: $e');
       rethrow;
     }
   }
