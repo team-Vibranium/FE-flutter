@@ -31,8 +31,8 @@ class StatisticsApiService {
   }) async {
     try {
       final queryParams = {
-        'startDate': startDate.toIso8601String(),
-        'endDate': endDate.toIso8601String(),
+        'startDate': startDate.toIso8601String().split('T')[0],
+        'endDate': endDate.toIso8601String().split('T')[0],
       };
 
       return await _baseApi.get<PeriodStatistics>(
@@ -315,7 +315,7 @@ class StatisticsApiService {
       return await _baseApi.get<Map<String, dynamic>>(
         '/api/statistics/period',
         queryParameters: queryParams,
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       rethrow;
@@ -337,7 +337,7 @@ class StatisticsApiService {
       return await _baseApi.get<Map<String, dynamic>>(
         '/api/statistics/calendar',
         queryParameters: queryParams,
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       rethrow;

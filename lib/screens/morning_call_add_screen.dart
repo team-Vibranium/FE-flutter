@@ -266,7 +266,7 @@ class _MorningCallAddScreenState extends ConsumerState<MorningCallAddScreen> {
                       label: Text(_weekDays[index]),
                       selected: isSelected,
                       onSelected: (_) => _toggleDay(index),
-                      selectedColor: Colors.indigo.withOpacity(0.2),
+                      selectedColor: Colors.indigo.withValues(alpha: 0.2),
                       checkmarkColor: Colors.indigo,
                     );
                   }),

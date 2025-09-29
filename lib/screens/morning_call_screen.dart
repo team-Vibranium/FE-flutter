@@ -240,8 +240,8 @@ class _MorningCallScreenState extends ConsumerState<MorningCallScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    Colors.indigo.withOpacity(0.8),
-                    Colors.indigo.withOpacity(0.3),
+                    Colors.indigo.withValues(alpha: 0.8),
+                    Colors.indigo.withValues(alpha: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -258,7 +258,7 @@ class _MorningCallScreenState extends ConsumerState<MorningCallScreen>
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.indigo.withOpacity(0.5),
+                            color: Colors.indigo.withValues(alpha: 0.5),
                             blurRadius: 20 * _waveAnimation.value,
                             spreadRadius: 10 * _waveAnimation.value,
                           ),
@@ -285,10 +285,10 @@ class _MorningCallScreenState extends ConsumerState<MorningCallScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -337,7 +337,7 @@ class _MorningCallScreenState extends ConsumerState<MorningCallScreen>
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(

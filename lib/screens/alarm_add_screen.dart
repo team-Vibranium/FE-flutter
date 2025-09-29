@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sound_selection_screen.dart';
-import '../core/services/morning_call_alarm_service.dart';
 import '../core/services/local_alarm_service.dart';
-import '../core/providers/auth_provider.dart';
 
 class AlarmAddScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? alarmData;
@@ -18,9 +16,9 @@ class AlarmAddScreen extends ConsumerStatefulWidget {
 class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 7, minute: 0);
   String _selectedAlarmType = '일반알람';
-  String _selectedMission = '퍼즐';
+  String _selectedMission = 'PUZZLE';
   String _selectedSound = '기본 알람음';
-  String _selectedVoice = '여성 목소리';
+  String _selectedVoice = 'ALLOY';
   String _selectedConcept = '친근한';
   double _volume = 0.8;
   bool _isVibrationEnabled = true;
@@ -34,8 +32,22 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   final TextEditingController _situationController = TextEditingController();
 
   final List<String> _days = ['월', '화', '수', '목', '금', '토', '일'];
-  final List<String> _missions = ['퍼즐', '수학 문제', '단어 맞추기', '기억력 테스트'];
-  final List<String> _voices = ['여성 목소리', '남성 목소리', '아이 목소리', '할머니 목소리'];
+  final Map<String, String> _missions = {
+    'PUZZLE': 'PUZZLE (퍼즐)',
+    'MATH': 'MATH (수학 문제)',
+    'MEMORY': 'MEMORY (기억 게임)',
+    'QUIZ': 'QUIZ (퀴즈)',
+  };
+  final Map<String, String> _voices = {
+    'ALLOY': 'ALLOY (균형 잡힌 중성적 목소리)',
+    'ASH': 'ASH (부드럽고 차분한 목소리)',
+    'BALLAD': 'BALLAD (서정적이고 따뜻한 목소리)',
+    'CORAL': 'CORAL (활기찬 여성 목소리)',
+    'ECHO': 'ECHO (맑고 선명한 목소리)',
+    'SAGE': 'SAGE (차분하고 부드러운 목소리)',
+    'SHIMMER': 'SHIMMER (밝고 경쾌한 목소리)',
+    'VERSE': 'VERSE (리드미컬하고 표현력 있는 목소리)',
+  };
   final List<String> _concepts = ['친근한', '격려하는', '재미있는', '진지한', '따뜻한', '에너지틱한'];
   final List<int> _snoozeMinutesOptions = [5, 10, 15, 30];
   final List<int> _snoozeCountOptions = [1, 2, 3, 5, 10];
@@ -412,10 +424,10 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items: _missions.map((mission) {
+              items: _missions.entries.map((entry) {
                 return DropdownMenuItem(
-                  value: mission,
-                  child: Text(mission),
+                  value: entry.key,
+                  child: Text(entry.value),
                 );
               }).toList(),
               onChanged: (value) {
@@ -743,10 +755,10 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    items: _voices.map((voice) {
+                    items: _voices.entries.map((entry) {
                       return DropdownMenuItem(
-                        value: voice,
-                        child: Text(voice),
+                        value: entry.key,
+                        child: Text(entry.value),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -858,7 +870,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     if (_isVoicePlaying) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_selectedVoice} 미리듣기 중...'),
+          content: Text('${_voices[_selectedVoice]} 미리듣기 중...'),
           duration: const Duration(seconds: 2),
           action: SnackBarAction(
             label: '중지',
@@ -875,12 +887,21 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
 
   Future<void> _saveAlarm() async {
     try {
-      if (_selectedAlarmType == '전화알람') {
-        // GPT 모닝콜 알람 생성
-        await _saveGPTMorningCallAlarm();
-      } else {
-        // 일반 알람 생성
-        await _saveLocalAlarm();
+      // 모든 알람을 일반 알람 시스템으로 저장 (전화알람도 포함)
+      await _saveLocalAlarm();
+
+      // onAlarmSaved 콜백 호출
+      if (widget.onAlarmSaved != null) {
+        final alarmData = {
+          'id': widget.alarmData?['id'],
+          'time': '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+          'days': _selectedDays,
+          'type': _selectedAlarmType, // '전화알람' 또는 '일반알람'
+          'isEnabled': true,
+          'tag': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
+          'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
+        };
+        widget.onAlarmSaved!(alarmData);
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -902,81 +923,11 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     }
   }
 
-  /// GPT 모닝콜 알람 저장
-  Future<void> _saveGPTMorningCallAlarm() async {
-    print('🌅 GPT 모닝콜 알람 저장 시작...');
-    print('📝 알람 제목: ${_alarmTitleController.text}');
-    print('⏰ 알람 시간: ${_selectedTime.hour}:${_selectedTime.minute}');
-    print('📅 선택된 요일: $_selectedDays');
-    print('🎯 알람 타입: $_selectedAlarmType');
-    
-    try {
-      // 현재 사용자 정보 가져오기
-      final authState = ref.read(authStateProvider);
-      final userName = authState.user?.nickname ?? '사용자';
-      print('👤 현재 사용자 닉네임: $userName');
-      
-      final service = MorningCallAlarmService();
-      print('🔧 MorningCallAlarmService 인스턴스 생성 완료');
-      
-      // 사용자 이름 업데이트
-      service.updateUserName(userName);
-      
-      // 서비스가 초기화되지 않은 경우 초기화 시도
-      if (!service.isInitialized) {
-        print('⚠️ 서비스가 초기화되지 않음. 초기화 시도 중...');
-        await service.initialize(
-          gptApiKey: '', // API 키 없이도 기본 알람 기능은 동작
-          userName: userName,
-        );
-        print('✅ 서비스 초기화 완료');
-      } else {
-        print('✅ 서비스가 이미 초기화됨');
-      }
-
-      // 선택된 요일들을 숫자 리스트로 변환 (1=월요일, 7=일요일)
-      final selectedDayNumbers = <int>[];
-      for (int i = 0; i < _selectedDays.length; i++) {
-        final dayName = _days[i];
-        if (_selectedDays.contains(dayName)) {
-          selectedDayNumbers.add(i + 1);
-        }
-      }
-      print('📅 변환된 요일 숫자: $selectedDayNumbers');
-
-      final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '모닝콜 알람';
-      print('📝 최종 알람 제목: $title');
-      
-      final scheduledTime = DateTime(
-        DateTime.now().year,
-        DateTime.now().month,
-        DateTime.now().day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
-      print('⏰ 스케줄된 시간: $scheduledTime');
-      
-      print('🚀 scheduleMorningCallAlarm 호출 시작...');
-      await service.scheduleMorningCallAlarm(
-        title: title,
-        scheduledTime: scheduledTime,
-        repeatDays: selectedDayNumbers.isNotEmpty ? selectedDayNumbers : null,
-        description: _situationController.text.isNotEmpty ? _situationController.text : '모닝콜 알람',
-      );
-      print('✅ scheduleMorningCallAlarm 호출 완료');
-      
-    } catch (e, stackTrace) {
-      print('❌ GPT 모닝콜 알람 저장 중 오류 발생:');
-      print('   오류 메시지: $e');
-      print('   스택 트레이스: $stackTrace');
-      rethrow; // 에러를 다시 던져서 상위에서 처리하도록 함
-    }
-  }
 
   /// 일반 로컬 알람 저장
   Future<void> _saveLocalAlarm() async {
     final service = LocalAlarmService.instance;
-    
+
     // 서비스 초기화
     await service.initialize();
 
@@ -990,7 +941,8 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     }
 
     final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
-    
+
+    // Repository 패턴으로 변경 필요 - 현재는 단순하게 새 알람만 생성
     await service.createAlarm(
       title: title,
       hour: _selectedTime.hour,
@@ -1001,7 +953,9 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
       snoozeInterval: _snoozeMinutes,
       label: title,
       isEnabled: true,
+      type: _selectedAlarmType, // '전화알람' 또는 '일반알람'
     );
+    print('알람 저장 완료: $title');
   }
 
   @override

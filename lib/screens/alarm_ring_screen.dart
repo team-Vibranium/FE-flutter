@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'ai_call_screen.dart';
 import 'mission_screen.dart';
 import '../core/models/alarm.dart';
+import '../core/services/gpt_realtime_service.dart';
 
 class AlarmRingScreen extends StatefulWidget {
   final String alarmType;
   final String alarmTime;
   final Alarm? alarm; // 알람 객체 추가
+  final int? alarmId; // 알람 ID 추가
 
   const AlarmRingScreen({
     super.key,
     required this.alarmType,
     required this.alarmTime,
     this.alarm,
+    this.alarmId,
   });
 
   @override
@@ -29,13 +31,15 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   Timer? _silenceTimer;
   int _silenceCountdown = 10;
   bool _isRecording = false;
-  bool _isCallActive = true;
-  
-  // 더미 대화 로그
-  final List<Map<String, dynamic>> _conversationLog = [
-    {'speaker': 'ai', 'message': '안녕하세요! 일어나실 시간이에요.', 'timestamp': '07:00:01'},
-    {'speaker': 'ai', 'message': '오늘도 좋은 하루 되세요!', 'timestamp': '07:00:03'},
-  ];
+  bool _isCallActive = false; // 전화 받기 전까지는 false
+  bool _isCallAccepted = false; // 전화 받았는지 여부
+
+  // GPT 서비스
+  final GPTRealtimeService _gptService = GPTRealtimeService();
+
+  // 스누즈 관련
+  int _snoozeCount = 0;
+  static const int _maxSnoozeCount = 3;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       duration: const Duration(seconds: 1),
       vsync: this,
     );
+    
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -78,24 +83,14 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
   void _startSilenceTimer() {
     _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _silenceCountdown--;
-      });
-      
-      if (_silenceCountdown <= 0) {
-        _handleSilenceTimeout();
-        timer.cancel();
+      if (_silenceCountdown > 0) {
+        setState(() {
+          _silenceCountdown--;
+        });
+      } else {
+        _stopAlarm();
       }
     });
-  }
-
-  void _handleSilenceTimeout() {
-    setState(() {
-      _isCallActive = false;
-    });
-    
-    // 실패 처리 후 종료
-    _showFailureDialog();
   }
 
   @override
@@ -109,116 +104,72 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.alarmType == '전화알람' ? Colors.black : Colors.white,
+      backgroundColor: Colors.black,
       body: widget.alarmType == '전화알람' 
-          ? _buildCallInterface()
-          : _buildNormalAlarmInterface(),
+        ? _buildCallInterface()
+        : _buildRegularAlarmInterface(),
     );
   }
 
-  Widget _buildNormalAlarmInterface() {
+  Widget _buildRegularAlarmInterface() {
     return SafeArea(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 큰 시계 UI
-          AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _pulseAnimation.value,
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.primary,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
+          const Spacer(),
+          
+          // 알람 아이콘
+          ScaleTransition(
+            scale: _pulseAnimation,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 10,
                   ),
-                  child: Center(
-                    child: Text(
-                      widget.alarmTime,
-                      style: const TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+                ],
+              ),
+              child: const Icon(
+                Icons.alarm,
+                size: 100,
+                color: Colors.white,
+              ),
+            ),
           ),
+          
           const SizedBox(height: 40),
           
-          // 알람 제목
+          // 알람 정보
           FadeTransition(
             opacity: _fadeAnimation,
-            child: const Text(
-              '일어날 시간이에요!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
-          
-          // 미션 해결 버튼 (메인 버튼)
-          Container(
-            width: 280,
-            margin: const EdgeInsets.only(bottom: 20),
-            child: ElevatedButton.icon(
-              onPressed: _startMission,
-              icon: const Icon(Icons.psychology, size: 24),
-              label: const Text(
-                '🧩 미션 해결하기',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              children: [
+                Text(
+                  '${widget.alarmType} 알람',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 8),
+                Text(
+                  '시간: ${widget.alarmTime}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.white70,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
           
-          // AI 통화 버튼 (서브 버튼)
-          Container(
-            width: 280,
-            margin: const EdgeInsets.only(bottom: 30),
-            child: ElevatedButton.icon(
-              onPressed: _startAICall,
-              icon: const Icon(Icons.smart_toy, size: 20),
-              label: const Text(
-                'AI와 음성 통화하기',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
+          const Spacer(),
           
           // 버튼들
           FadeTransition(
@@ -226,12 +177,14 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildActionButton(
-                  icon: Icons.snooze,
-                  label: '스누즈',
-                  color: Colors.orange,
-                  onPressed: _snoozeAlarm,
-                ),
+                // 스누즈 버튼은 일반알람에서만 표시
+                if (widget.alarmType != '전화알람')
+                  _buildActionButton(
+                    icon: Icons.snooze,
+                    label: '스누즈',
+                    color: Colors.orange,
+                    onPressed: _snoozeAlarm,
+                  ),
                 _buildActionButton(
                   icon: Icons.stop,
                   label: '종료',
@@ -253,9 +206,9 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
           // 상단 프로필
           _buildCallHeader(),
           
-          // 대화 로그
+          // 음성 상태 표시 (채팅 로그 대신)
           Expanded(
-            child: _buildConversationLog(),
+            child: _buildVoiceStatus(),
           ),
           
           // 하단 컨트롤
@@ -299,7 +252,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
               color: Colors.white70,
             ),
           ),
-          if (_isCallActive) ...[
+          if (_isCallAccepted) ...[
             const SizedBox(height: 8),
             Text(
               '무발화 ${_silenceCountdown}초 후 종료',
@@ -308,85 +261,93 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
                 color: Colors.red,
               ),
             ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              '전화가 왔습니다',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white70,
+              ),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildConversationLog() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: ListView.builder(
-        itemCount: _conversationLog.length,
-        itemBuilder: (context, index) {
-          final message = _conversationLog[index];
-          return _buildMessageBubble(message);
-        },
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isAI = message['speaker'] == 'ai';
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: isAI ? MainAxisAlignment.start : MainAxisAlignment.end,
+  Widget _buildVoiceStatus() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (isAI) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: const Text(
-                'AI',
-                style: TextStyle(fontSize: 10, color: Colors.white),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isAI ? Colors.grey[800] : Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message['message'],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    message['timestamp'],
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+          // 음성 파형 애니메이션
+          _buildVoiceWaveform(),
+          
+          const SizedBox(height: 32),
+          
+          // 상태 메시지
+          Text(
+            _isCallAccepted 
+              ? (_isCallActive ? '음성 대화 중...' : '통화 종료')
+              : '전화를 받으세요',
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          if (!isAI) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.grey[600],
-              child: const Text(
-                '나',
-                style: TextStyle(fontSize: 10, color: Colors.white),
-              ),
+          
+          const SizedBox(height: 16),
+          
+          // 마이크 상태
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isRecording ? Icons.mic : Icons.mic_off,
+                  color: _isRecording ? Colors.red : Colors.white70,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _isRecording ? '음성 인식 중' : '음성 인식 대기',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVoiceWaveform() {
+    return Container(
+      width: 200,
+      height: 100,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(5, (index) {
+          return AnimatedContainer(
+            duration: Duration(milliseconds: 300 + (index * 100)),
+            width: 8,
+            height: _isCallActive ? (20 + (index * 10)) : 10,
+            decoration: BoxDecoration(
+              color: _isCallActive ? Colors.white : Colors.white30,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -394,89 +355,23 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   Widget _buildCallControls() {
     return Container(
       padding: const EdgeInsets.all(20),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // AI 통화 시작 버튼 (새로 추가)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 20),
-            child: ElevatedButton.icon(
-              onPressed: _startAICall,
-              icon: const Icon(Icons.smart_toy, size: 24),
-              label: const Text(
-                'AI와 음성 통화하기',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+          // 전화 거절 버튼
+          _buildControlButton(
+            icon: Icons.call_end,
+            label: '거절',
+            color: Colors.red,
+            onPressed: _rejectCall,
           ),
           
-          // 기존 컨트롤들
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // 마이크 버튼
-              GestureDetector(
-                onTapDown: (_) => _startRecording(),
-                onTapUp: (_) => _stopRecording(),
-                onTapCancel: () => _stopRecording(),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isRecording ? Colors.red : Colors.green,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_isRecording ? Colors.red : Colors.green).withOpacity(0.3),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _isRecording ? Icons.mic : Icons.mic_none,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                ),
-          ),
-          
-          // 종료 버튼
-          GestureDetector(
-            onTap: _endCall,
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red,
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.call_end,
-                color: Colors.white,
-                size: 30,
-              ),
-            ),
-          ),
-            ],
+          // 전화 받기 버튼
+          _buildControlButton(
+            icon: Icons.call,
+            label: '받기',
+            color: Colors.green,
+            onPressed: _acceptCall,
           ),
         ],
       ),
@@ -491,33 +386,30 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   }) {
     return Column(
       children: [
-        GestureDetector(
-          onTap: onPressed,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 36,
-            ),
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(icon, size: 40, color: Colors.white),
+            onPressed: onPressed,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           label,
           style: const TextStyle(
+            color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
@@ -526,134 +418,138 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
     );
   }
 
-  void _startRecording() {
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(icon, size: 30, color: Colors.white),
+            onPressed: onPressed,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _acceptCall() async {
     setState(() {
+      _isCallActive = true;
+      _isCallAccepted = true;
       _isRecording = true;
     });
-    // 녹음 시작 로직
+    
+    // GPT 서비스 시작
+    if (widget.alarmId != null) {
+      try {
+        print('📞 전화 받기 - GPT 서비스 시작');
+        await _gptService.startMorningCall(alarmId: widget.alarmId!);
+        
+        // GPT 서비스 콜백 설정
+        _gptService.onCallStarted = () {
+          print('✅ GPT 통화 시작됨');
+        };
+        
+        _gptService.onCallEnded = () {
+          print('📞 GPT 통화 종료됨');
+          Navigator.of(context).pop();
+        };
+        
+        _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
+          print('😴 스누즈 요청됨: ${snoozeMinutes}분');
+          // 스누즈 처리 (GPT 서비스에서 자동 처리됨)
+        };
+        
+      } catch (e) {
+        print('❌ GPT 서비스 시작 실패: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('통화 연결 실패: $e')),
+        );
+      }
+    }
   }
 
-  void _stopRecording() {
+  void _rejectCall() {
     setState(() {
-      _isRecording = false;
+      _isCallActive = false;
     });
-    // 녹음 중지 로직
+    
+    // 알람 종료
+    _stopAlarm();
   }
+
 
   void _snoozeAlarm() {
-    // 스누즈 로직
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('5분 후 다시 알람이 울립니다'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    Navigator.pop(context);
+    if (_snoozeCount < _maxSnoozeCount) {
+      setState(() {
+        _snoozeCount++;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('스누즈 ${_snoozeCount}/${_maxSnoozeCount} - 5분 후 다시 알람이 울립니다'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      
+      // 5분 후 알람 재설정 로직
+      Timer(const Duration(minutes: 5), () {
+        // 알람 재설정
+      });
+      
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('최대 스누즈 횟수에 도달했습니다'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _stopAlarm() {
-    // 알람 종료 로직
-    _showSuccessDialog();
-  }
-
-  void _endCall() {
-    // 통화 종료 로직
-    _showFailureDialog();
-  }
-
-  /// 미션 해결 시작
-  void _startMission() {
-    final alarmTitle = widget.alarm?.tag ?? '알람';
+    _silenceTimer?.cancel();
+    setState(() {
+      _isCallActive = false;
+    });
     
-    Navigator.push(
+    // 미션 화면으로 이동
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => MissionScreen(
-          alarmTitle: alarmTitle,
+          alarmTitle: '${widget.alarmType} 알람',
           onMissionCompleted: () {
-            // 미션 성공 시 알람 해제
-            Navigator.pop(context); // 미션 스크린 닫기
-            _showSuccessDialog();
-          },
-          onMissionFailed: () {
-            // 미션 포기 시 원래 알람 화면으로 돌아옴
-            Navigator.pop(context); // 미션 스크린 닫기
+            Navigator.pop(context);
           },
         ),
-      ),
-    );
-  }
-
-  /// AI 통화 시작
-  void _startAICall() {
-    final alarmTitle = widget.alarm?.tag ?? '알람';
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AICallScreen(
-          alarmTitle: alarmTitle,
-          onCallEnded: () {
-            // AI 통화 종료 후 원래 알람 화면으로 돌아옴
-            debugPrint('AI call ended');
-          },
-          onAlarmDismissed: () {
-            // AI가 알람 해제를 승인한 경우
-            _showSuccessDialog();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green),
-            SizedBox(width: 8),
-            Text('알람 성공!'),
-          ],
-        ),
-        content: const Text('오늘도 좋은 하루 되세요!'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showFailureDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.cancel, color: Colors.red),
-            SizedBox(width: 8),
-            Text('알람 실패'),
-          ],
-        ),
-        content: const Text('다음에는 꼭 일어나세요!'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
   }

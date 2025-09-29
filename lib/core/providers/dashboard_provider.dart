@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/alarm.dart';
 import 'alarm_provider.dart';
+import 'repository_provider.dart';
 
 // Dashboard 상태 관리
 class DashboardState {
@@ -48,22 +49,37 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   
   DashboardNotifier(this._ref) : super(const DashboardState()) {
     _loadInitialData();
-    
-    // 초기화 완료 후 알람 스케줄링 실행
-    Future.microtask(() async {
-      final alarms = state.alarms;
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+
+      final repository = _ref.read(alarmRepositoryProvider);
+      final alarms = await repository.getAllAlarms();
+
+      state = state.copyWith(
+        alarms: alarms,
+        isLoading: false,
+      );
+
+      // 알람 스케줄링 실행
       for (final alarm in alarms) {
         if (alarm.isEnabled) {
           await _scheduleAlarmNotifications(alarm);
         }
       }
-    });
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+    }
   }
 
-  void _loadInitialData() {
-    // 실제 알람 데이터는 API에서 로드하거나 로컬 저장소에서 가져옴
-    // 초기에는 빈 리스트로 시작
-    state = state.copyWith(alarms: []);
+  // 데이터 새로고침
+  Future<void> refreshData() async {
+    await _loadInitialData();
   }
 
   void setCurrentIndex(int index) {
@@ -75,48 +91,80 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 
   Future<void> addAlarm(Alarm alarm) async {
-    final updatedAlarms = [...state.alarms, alarm];
-    state = state.copyWith(alarms: updatedAlarms);
-    
-    // 실제 시스템 알림 스케줄링
-    if (alarm.isEnabled) {
-      await _scheduleAlarmNotifications(alarm);
+    try {
+      final repository = _ref.read(alarmRepositoryProvider);
+      final newAlarm = await repository.createAlarm(alarm);
+
+      final updatedAlarms = [...state.alarms, newAlarm];
+      state = state.copyWith(alarms: updatedAlarms);
+
+      // 실제 시스템 알림 스케줄링
+      if (newAlarm.isEnabled) {
+        await _scheduleAlarmNotifications(newAlarm);
+      }
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
   Future<void> updateAlarm(Alarm updatedAlarm) async {
-    // 기존 알람의 알림 취소
-    final oldAlarm = state.alarms.firstWhere((alarm) => alarm.id == updatedAlarm.id);
-    await _cancelAlarmNotifications(oldAlarm);
-    
-    final updatedAlarms = state.alarms.map((alarm) {
-      return alarm.id == updatedAlarm.id ? updatedAlarm : alarm;
-    }).toList();
-    state = state.copyWith(alarms: updatedAlarms);
-    
-    // 새 알람 스케줄링
-    if (updatedAlarm.isEnabled) {
-      await _scheduleAlarmNotifications(updatedAlarm);
+    try {
+      // 기존 알람의 알림 취소
+      final oldAlarm = state.alarms.firstWhere((alarm) => alarm.id == updatedAlarm.id);
+      await _cancelAlarmNotifications(oldAlarm);
+
+      // Repository를 통해 업데이트
+      final repository = _ref.read(alarmRepositoryProvider);
+      final savedAlarm = await repository.updateAlarm(updatedAlarm);
+
+      // 상태 업데이트
+      final updatedAlarms = state.alarms.map((alarm) {
+        return alarm.id == savedAlarm.id ? savedAlarm : alarm;
+      }).toList();
+      state = state.copyWith(alarms: updatedAlarms);
+
+      print('알람 업데이트 완료: ${savedAlarm.tag}');
+
+      // 새 알람 스케줄링
+      if (savedAlarm.isEnabled) {
+        await _scheduleAlarmNotifications(savedAlarm);
+      }
+    } catch (e) {
+      print('알람 업데이트 실패: $e');
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
   Future<void> toggleAlarm(int alarmId) async {
-    final alarm = state.alarms.firstWhere((alarm) => alarm.id == alarmId);
-    final updatedAlarm = alarm.copyWith(isEnabled: !alarm.isEnabled);
-    
-    final updatedAlarms = state.alarms.map((alarm) {
-      if (alarm.id == alarmId) {
-        return updatedAlarm;
+    try {
+      final alarm = state.alarms.firstWhere((alarm) => alarm.id == alarmId);
+      final repository = _ref.read(alarmRepositoryProvider);
+
+      // Repository를 통해 토글
+      await repository.toggleAlarm(alarmId, !alarm.isEnabled);
+
+      // 로컬 상태 업데이트
+      final updatedAlarm = alarm.copyWith(isEnabled: !alarm.isEnabled);
+      final updatedAlarms = state.alarms.map((alarm) {
+        if (alarm.id == alarmId) {
+          return updatedAlarm;
+        }
+        return alarm;
+      }).toList();
+      state = state.copyWith(alarms: updatedAlarms);
+
+      // 알람 상태에 따라 스케줄링/취소
+      if (updatedAlarm.isEnabled) {
+        await _scheduleAlarmNotifications(updatedAlarm);
+      } else {
+        await _cancelAlarmNotifications(updatedAlarm);
       }
-      return alarm;
-    }).toList();
-    state = state.copyWith(alarms: updatedAlarms);
-    
-    // 알람 상태에 따라 스케줄링/취소
-    if (updatedAlarm.isEnabled) {
-      await _scheduleAlarmNotifications(updatedAlarm);
-    } else {
-      await _cancelAlarmNotifications(updatedAlarm);
+    } catch (e) {
+      print('알람 토글 실패: $e');
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -171,24 +219,30 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       final hour = int.parse(timeParts[0]);
       final minute = int.parse(timeParts[1]);
       
-      // 다음 알람 시간 계산
-      DateTime scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
+      // 한국 시간으로 변환 (UTC+9)
+      final koreaTime = now.add(const Duration(hours: 9));
+      
+      // 다음 알람 시간 계산 (한국 시간 기준)
+      DateTime scheduledTime = DateTime(koreaTime.year, koreaTime.month, koreaTime.day, hour, minute);
       
       // 해당 요일로 조정
-      final daysUntilTarget = (weekday - now.weekday + 7) % 7;
+      final daysUntilTarget = (weekday - koreaTime.weekday + 7) % 7;
       scheduledTime = scheduledTime.add(Duration(days: daysUntilTarget));
       
       // 만약 오늘이고 시간이 지났다면 다음 주로
-      if (daysUntilTarget == 0 && scheduledTime.isBefore(now)) {
+      if (daysUntilTarget == 0 && scheduledTime.isBefore(koreaTime)) {
         scheduledTime = scheduledTime.add(const Duration(days: 7));
       }
+      
+      // UTC로 변환 (알람 스케줄링용)
+      scheduledTime = scheduledTime.subtract(const Duration(hours: 9));
       
       // 디버깅: 현재 시간과 예정 시간 출력
       print('현재 시간: $now');
       print('예정 시간: $scheduledTime (${alarm.tag} - $day)');
       
-      // 고유한 알림 ID 생성 (작은 범위의 ID 사용)
-      final notificationId = (alarm.id % 1000) * 10 + weekday;
+      // 고유한 알림 ID 생성 (정수 ID 사용)
+      final notificationId = alarm.id * 10 + weekday;
       
       try {
         await alarmNotifier.scheduleAlarm(

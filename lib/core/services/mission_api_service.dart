@@ -27,8 +27,8 @@ class MissionApiService {
       if (offset != null) queryParams['offset'] = offset.toString();
       if (missionType != null) queryParams['missionType'] = missionType.name;
       if (isCompleted != null) queryParams['isCompleted'] = isCompleted.toString();
-      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String();
-      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String();
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
 
       return await _baseApi.get<List<MissionResult>>(
         '/api/mission-results',
@@ -137,7 +137,7 @@ class MissionApiService {
   }) async {
     return saveMissionResult(
       alarmId: alarmId,
-      missionType: MissionType.math,
+      missionType: MissionType.MATH,
       isCompleted: isCompleted,
       score: score,
       resultData: {
@@ -162,7 +162,7 @@ class MissionApiService {
   }) async {
     return saveMissionResult(
       alarmId: alarmId,
-      missionType: MissionType.memory,
+      missionType: MissionType.MEMORY,
       isCompleted: isCompleted,
       score: score,
       resultData: {
@@ -187,7 +187,7 @@ class MissionApiService {
   }) async {
     return saveMissionResult(
       alarmId: alarmId,
-      missionType: MissionType.puzzle,
+      missionType: MissionType.PUZZLE,
       isCompleted: isCompleted,
       score: score,
       resultData: {
@@ -211,7 +211,7 @@ class MissionApiService {
   }) async {
     return saveMissionResult(
       alarmId: alarmId,
-      missionType: MissionType.voice,
+      missionType: MissionType.QUIZ,
       isCompleted: isCompleted,
       score: score,
       resultData: {
@@ -236,7 +236,7 @@ class MissionApiService {
   }) async {
     return saveMissionResult(
       alarmId: alarmId,
-      missionType: MissionType.walking,
+      missionType: MissionType.QUIZ,
       isCompleted: isCompleted,
       score: score,
       resultData: {

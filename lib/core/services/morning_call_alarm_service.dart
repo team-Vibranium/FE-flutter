@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -18,7 +17,6 @@ class MorningCallAlarmService {
   final GPTRealtimeService _gptService = GPTRealtimeService();
   
   bool _isInitialized = false;
-  String? _gptApiKey;
   String _userName = '사용자'; // 기본 사용자 이름
 
   /// 사용자 이름 업데이트
@@ -34,7 +32,6 @@ class MorningCallAlarmService {
   }) async {
     if (_isInitialized) return;
 
-    _gptApiKey = gptApiKey;
     if (userName != null) _userName = userName;
 
     // 알림 권한 요청
@@ -42,6 +39,9 @@ class MorningCallAlarmService {
     
     // 로컬 알림 초기화
     await _initializeNotifications();
+    
+    // 알람 채널 생성
+    await _createAlarmChannel();
     
     // GPT 서비스 초기화 (API 키가 있는 경우에만)
     if (gptApiKey.isNotEmpty) {
@@ -126,11 +126,19 @@ class MorningCallAlarmService {
       try {
         final alarmData = jsonDecode(payload) as Map<String, dynamic>;
         final alarmTitle = alarmData['title'] as String;
+        final alarmId = alarmData['id'] as int?;
         
-        print('🔔 모닝콜 알람 트리거: $alarmTitle');
+        print('🔔 모닝콜 알람 트리거: $alarmTitle (ID: $alarmId)');
         
         // 모닝콜 시작
-        await startMorningCall(alarmTitle: alarmTitle);
+        if (alarmId != null) {
+          await startMorningCall(
+            alarmTitle: alarmTitle,
+            alarmId: alarmId,
+          );
+        } else {
+          print('⚠️ 알람 ID가 없어서 모닝콜을 시작할 수 없습니다');
+        }
         
       } catch (e) {
         print('알림 처리 오류: $e');
@@ -140,11 +148,6 @@ class MorningCallAlarmService {
 
   /// GPT 서비스 콜백 설정
   void _setupGPTCallbacks() {
-    _gptService.onMessageReceived = (message) {
-      print('🤖 GPT 메시지: $message');
-      // UI 업데이트나 로깅 등
-    };
-
     _gptService.onError = (error) {
       print('GPT 오류: $error');
       // 오류 처리 로직
@@ -163,6 +166,11 @@ class MorningCallAlarmService {
     _gptService.onRemoteStream = (stream) {
       print('🔊 GPT 음성 스트림 수신');
       // 오디오 스트림 처리
+    };
+
+    _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
+      print('😴 스누즈 요청됨: 알람 ID $alarmId, ${snoozeMinutes}분');
+      // 스누즈 처리 로직
     };
   }
 
@@ -287,10 +295,12 @@ class MorningCallAlarmService {
                 showWhen: true,
                 enableVibration: true,
                 playSound: true,
-                sound: RawResourceAndroidNotificationSound('alarm_sound'),
+                category: AndroidNotificationCategory.alarm,
+                fullScreenIntent: true,
+                // sound: RawResourceAndroidNotificationSound('alarm_sound'), // 기본 알람 소리 사용
               ),
               iOS: DarwinNotificationDetails(
-                sound: 'alarm_sound.wav',
+                sound: 'alarm_sound.wav', // 커스텀 사운드 활성화
                 presentAlert: true,
                 presentBadge: true,
                 presentSound: true,
@@ -336,10 +346,12 @@ class MorningCallAlarmService {
               showWhen: true,
               enableVibration: true,
               playSound: true,
-              sound: RawResourceAndroidNotificationSound('alarm_sound'),
+              category: AndroidNotificationCategory.alarm,
+              fullScreenIntent: true,
+              // sound: RawResourceAndroidNotificationSound('alarm_sound'), // 기본 알람 소리 사용
             ),
             iOS: DarwinNotificationDetails(
-              sound: 'alarm_sound.wav',
+              sound: 'alarm_sound.wav', // 커스텀 사운드 활성화
               presentAlert: true,
               presentBadge: true,
               presentSound: true,
@@ -368,6 +380,30 @@ class MorningCallAlarmService {
     return scheduledDate;
   }
 
+  /// 알람 채널 생성 (Android)
+  Future<void> _createAlarmChannel() async {
+    try {
+      const androidNotificationChannel = AndroidNotificationChannel(
+        'morning_call_channel',
+        '모닝콜 알람',
+        description: 'GPT와 함께하는 모닝콜 알람',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      );
+      
+      await _notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidNotificationChannel);
+      
+      print('🔊 알람 채널 생성 완료');
+    } catch (e) {
+      print('❌ 알람 채널 생성 실패: $e');
+    }
+  }
+
   /// 알람 데이터 저장
   Future<void> _saveAlarmData(int alarmId, Map<String, dynamic> data) async {
     print('💾 _saveAlarmData 호출됨');
@@ -392,17 +428,6 @@ class MorningCallAlarmService {
     }
   }
 
-  /// 알람 데이터 로드
-  Future<Map<String, dynamic>?> _loadAlarmData(int alarmId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final alarmKey = 'morning_call_alarm_$alarmId';
-    final dataString = prefs.getString(alarmKey);
-    
-    if (dataString != null) {
-      return jsonDecode(dataString) as Map<String, dynamic>;
-    }
-    return null;
-  }
 
   /// 모든 알람 조회
   Future<List<Map<String, dynamic>>> getAllAlarms() async {
@@ -448,6 +473,7 @@ class MorningCallAlarmService {
   Future<void> startMorningCall({
     required String alarmTitle,
     String? customUserName,
+    int? alarmId,
   }) async {
     if (!_isInitialized) {
       throw Exception('서비스가 초기화되지 않았습니다');
@@ -458,10 +484,12 @@ class MorningCallAlarmService {
     try {
       print('🌅 모닝콜 시작: $alarmTitle for $userName');
       
-      await _gptService.startMorningCall(
-        alarmTitle: alarmTitle,
-        userName: userName,
-      );
+      if (alarmId != null) {
+        await _gptService.startMorningCall(alarmId: alarmId);
+      } else {
+        print('⚠️ alarmId가 없어서 모닝콜을 시작할 수 없습니다');
+        throw Exception('alarmId가 필요합니다');
+      }
       
     } catch (e) {
       print('모닝콜 시작 실패: $e');
@@ -488,10 +516,14 @@ class MorningCallAlarmService {
   /// 사용자 이름 조회
   String get userName => _userName;
 
-  /// 테스트용 즉시 모닝콜
-  Future<void> testMorningCall({String? testTitle}) async {
-    final title = testTitle ?? '테스트 모닝콜';
-    await startMorningCall(alarmTitle: title);
+  /// 즉시 모닝콜 실행
+  Future<void> testMorningCall({String? testTitle, int? testAlarmId}) async {
+    final title = testTitle ?? '모닝콜 실행';
+    final alarmId = testAlarmId ?? 999999; // 테스트용 알람 ID
+    await startMorningCall(
+      alarmTitle: title,
+      alarmId: alarmId,
+    );
   }
 
   /// 초기화 상태 확인

@@ -29,7 +29,7 @@ class LocalAlarmStorageService {
     try {
       final List<dynamic> alarmsList = jsonDecode(alarmsJson);
       return alarmsList
-          .map((json) => LocalAlarm.fromJson(json as Map<String, dynamic>))
+          .map((json) => LocalAlarm.fromJson(json))
           .toList();
     } catch (e) {
       print('알람 데이터 로드 오류: $e');
@@ -44,7 +44,7 @@ class LocalAlarmStorageService {
   }
   
   /// ID로 알람 조회
-  Future<LocalAlarm?> getAlarmById(String id) async {
+  Future<LocalAlarm?> getAlarmById(int id) async {
     final allAlarms = await getAllAlarms();
     try {
       return allAlarms.firstWhere((alarm) => alarm.id == id);
@@ -85,7 +85,7 @@ class LocalAlarmStorageService {
   }
   
   /// 알람 삭제
-  Future<bool> deleteAlarm(String id) async {
+  Future<bool> deleteAlarm(int id) async {
     try {
       final allAlarms = await getAllAlarms();
       allAlarms.removeWhere((alarm) => alarm.id == id);
@@ -97,7 +97,7 @@ class LocalAlarmStorageService {
   }
   
   /// 알람 활성화/비활성화
-  Future<bool> toggleAlarm(String id, bool isEnabled) async {
+  Future<bool> toggleAlarm(int id, bool isEnabled) async {
     try {
       final alarm = await getAlarmById(id);
       if (alarm == null) return false;
@@ -232,7 +232,7 @@ class LocalAlarmStorageService {
       final alarmsList = data['alarms'] as List<dynamic>;
       
       final alarms = alarmsList
-          .map((json) => LocalAlarm.fromJson(json as Map<String, dynamic>))
+          .map((json) => LocalAlarm.fromJson(json))
           .toList();
       
       return await saveAlarms(alarms);

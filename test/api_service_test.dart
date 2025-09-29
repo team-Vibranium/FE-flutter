@@ -20,14 +20,15 @@ void main() {
     test('API 모델 생성 테스트', () {
       // User 모델 테스트
       final user = User(
-        id: 'test_id',
+        id: 1,
         email: 'test@example.com',
         nickname: '테스트유저',
+        points: 100,
+        selectedAvatar: 'avatar1',
         createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
       );
 
-      expect(user.id, equals('test_id'));
+      expect(user.id, equals(1));
       expect(user.email, equals('test@example.com'));
       expect(user.nickname, equals('테스트유저'));
 
@@ -82,13 +83,12 @@ void main() {
 
     test('PointSummary 모델 테스트', () {
       final pointSummary = PointSummary(
+        consumptionPoints: 800,
+        gradePoints: 200,
         totalPoints: 1000,
+        currentGrade: 'BRONZE',
         earnedToday: 50,
         spentToday: 20,
-        earnedThisWeek: 200,
-        spentThisWeek: 80,
-        earnedThisMonth: 500,
-        spentThisMonth: 300,
       );
 
       expect(pointSummary.totalPoints, equals(1000));
@@ -107,61 +107,47 @@ void main() {
     test('CallLog 모델 테스트', () {
       final startTime = DateTime.now().subtract(const Duration(minutes: 5));
       final endTime = DateTime.now();
-      
+
       final callLog = CallLog(
-        id: 'call_123',
-        userId: 'user_456',
-        alarmTitle: '아침 7시 알람',
-        startTime: startTime,
-        endTime: endTime,
-        duration: 300,
-        isSuccessful: true,
-        transcript: 'AI와의 대화 내용',
-        metadata: {'alarmId': 'alarm_789'},
+        id: 123,
+        callStart: startTime,
+        callEnd: endTime,
+        result: 'SUCCESS',
+        snoozeCount: 0,
+        successful: true,
+        createdAt: startTime,
+        conversationData: 'AI와의 대화 내용',
       );
 
-      expect(callLog.id, equals('call_123'));
-      expect(callLog.userId, equals('user_456'));
-      expect(callLog.alarmTitle, equals('아침 7시 알람'));
-      expect(callLog.duration, equals(300));
+      expect(callLog.id, equals(123));
+      expect(callLog.result, equals('SUCCESS'));
+      expect(callLog.duration, greaterThan(0));
       expect(callLog.isSuccessful, isTrue);
       expect(callLog.transcript, equals('AI와의 대화 내용'));
-      expect(callLog.metadata!['alarmId'], equals('alarm_789'));
 
       // JSON 직렬화 테스트
       final json = callLog.toJson();
       final fromJson = CallLog.fromJson(json);
       
       expect(fromJson.id, equals(callLog.id));
-      expect(fromJson.userId, equals(callLog.userId));
-      expect(fromJson.alarmTitle, equals(callLog.alarmTitle));
-      expect(fromJson.duration, equals(callLog.duration));
+      expect(fromJson.result, equals(callLog.result));
+      expect(fromJson.successful, equals(callLog.successful));
       expect(fromJson.isSuccessful, equals(callLog.isSuccessful));
     });
 
     test('MissionResult 모델 테스트', () {
       final missionResult = MissionResult(
-        id: 'mission_123',
-        userId: 'user_456',
-        alarmId: 'alarm_789',
-        missionType: MissionType.math,
-        isCompleted: true,
+        id: 123,
+        callLogId: 456,
+        missionType: 'MATH',
+        success: true,
         score: 85,
-        completedAt: DateTime.now(),
-        resultData: {
-          'problems': [
-            {'question': '2 + 3', 'answer': 5, 'correct': true}
-          ],
-          'correctAnswers': 1,
-          'totalProblems': 1,
-        },
       );
 
-      expect(missionResult.id, equals('mission_123'));
-      expect(missionResult.missionType, equals(MissionType.math));
-      expect(missionResult.isCompleted, isTrue);
+      expect(missionResult.id, equals(123));
+      expect(missionResult.missionType, equals('MATH'));
+      expect(missionResult.success, isTrue);
       expect(missionResult.score, equals(85));
-      expect(missionResult.resultData!['correctAnswers'], equals(1));
 
       // JSON 직렬화 테스트
       final json = missionResult.toJson();
@@ -169,17 +155,24 @@ void main() {
       
       expect(fromJson.id, equals(missionResult.id));
       expect(fromJson.missionType, equals(missionResult.missionType));
-      expect(fromJson.isCompleted, equals(missionResult.isCompleted));
+      expect(fromJson.success, equals(missionResult.success));
       expect(fromJson.score, equals(missionResult.score));
     });
 
     test('StatisticsOverview 모델 테스트', () {
       final stats = StatisticsOverview(
         totalAlarms: 100,
-        successfulWakeups: 85,
+        successAlarms: 85,
+        missedAlarms: 15,
         successRate: 85.0,
-        totalCallTime: 18000, // 5시간
-        averageCallTime: 180,  // 3분
+        consecutiveDays: 7,
+        averageWakeTime: '07:30',
+        last30DaysSuccessRate: 85.0,
+        monthlySuccessRate: 82.5,
+        monthlyPoints: 1500,
+        averageCallTime: 180.0,
+        successfulWakeups: 85,
+        totalCallTime: 18000,
         totalPoints: 1500,
         completedMissions: 75,
       );
@@ -204,11 +197,10 @@ void main() {
     test('enum 값 테스트', () {
       // MissionType enum 테스트
       expect(MissionType.values.length, equals(5));
-      expect(MissionType.math.name, equals('math'));
-      expect(MissionType.memory.name, equals('memory'));
-      expect(MissionType.puzzle.name, equals('puzzle'));
-      expect(MissionType.voice.name, equals('voice'));
-      expect(MissionType.walking.name, equals('walking'));
+      expect(MissionType.MATH.name, equals('MATH'));
+      expect(MissionType.MEMORY.name, equals('MEMORY'));
+      expect(MissionType.PUZZLE.name, equals('PUZZLE'));
+      expect(MissionType.QUIZ.name, equals('QUIZ'));
 
       // PointTransactionType enum 테스트
       expect(PointTransactionType.values.length, equals(2));

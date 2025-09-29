@@ -299,7 +299,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 2,
                       offset: const Offset(0, 1),
                     ),
@@ -398,7 +398,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
             fontSize: 12,
             color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.white70
-                : Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
+                : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
           ),
         ),
       ],

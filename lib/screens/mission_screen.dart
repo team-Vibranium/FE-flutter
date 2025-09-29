@@ -154,7 +154,7 @@ class _MissionScreenState extends ConsumerState<MissionScreen>
                     color: Colors.indigo,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.indigo.withOpacity(0.3),
+                        color: Colors.indigo.withValues(alpha: 0.3),
                         blurRadius: 15,
                         spreadRadius: 5,
                       ),
@@ -219,9 +219,9 @@ class _MissionScreenState extends ConsumerState<MissionScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          color: typeColor.withOpacity(0.1),
+          color: typeColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: typeColor.withOpacity(0.3)),
+          border: Border.all(color: typeColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -253,7 +253,7 @@ class _MissionScreenState extends ConsumerState<MissionScreen>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -344,7 +344,7 @@ class _MissionScreenState extends ConsumerState<MissionScreen>
                 boxShadow: [
                   if (!isCompleted || option == puzzleState.currentMission!.correctAnswer)
                     BoxShadow(
-                      color: cardColor.withOpacity(0.3),
+                      color: cardColor.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),

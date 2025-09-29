@@ -25,7 +25,7 @@ class PointsApiService {
 
   /// 포인트 내역 조회
   /// GET /api/points/history
-  Future<ApiResponse<List<PointHistory>>> getPointHistory({
+  Future<ApiResponse<List<PointTransaction>>> getPointTransaction({
     int? limit,
     int? offset,
     PointTransactionType? type,
@@ -38,16 +38,16 @@ class PointsApiService {
       if (limit != null) queryParams['limit'] = limit.toString();
       if (offset != null) queryParams['offset'] = offset.toString();
       if (type != null) queryParams['type'] = type.name;
-      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String();
-      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String();
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
 
-      return await _baseApi.get<List<PointHistory>>(
+      return await _baseApi.get<List<PointTransaction>>(
         '/api/points/history',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
         fromJson: (json) {
           final List<dynamic> historyList = json['history'] ?? json['data'] ?? [];
           return historyList
-              .map((item) => PointHistory.fromJson(item as Map<String, dynamic>))
+              .map((item) => PointTransaction.fromJson(item as Map<String, dynamic>))
               .toList();
         },
       );
@@ -58,12 +58,12 @@ class PointsApiService {
 
   /// 포인트 사용
   /// POST /api/points/spend
-  Future<ApiResponse<PointHistory>> spendPoints(SpendPointsRequest request) async {
+  Future<ApiResponse<PointTransaction>> spendPoints(SpendPointsRequest request) async {
     try {
-      return await _baseApi.post<PointHistory>(
+      return await _baseApi.post<PointTransaction>(
         '/api/points/spend',
         body: request.toJson(),
-        fromJson: (json) => PointHistory.fromJson(json),
+        fromJson: (json) => PointTransaction.fromJson(json),
       );
     } catch (e) {
       rethrow;
@@ -72,12 +72,12 @@ class PointsApiService {
 
   /// 포인트 획득
   /// POST /api/points/earn
-  Future<ApiResponse<PointHistory>> earnPoints(EarnPointsRequest request) async {
+  Future<ApiResponse<PointTransaction>> earnPoints(EarnPointsRequest request) async {
     try {
-      return await _baseApi.post<PointHistory>(
+      return await _baseApi.post<PointTransaction>(
         '/api/points/earn',
         body: request.toJson(),
-        fromJson: (json) => PointHistory.fromJson(json),
+        fromJson: (json) => PointTransaction.fromJson(json),
       );
     } catch (e) {
       rethrow;
@@ -85,7 +85,7 @@ class PointsApiService {
   }
 
   /// 알람 성공으로 포인트 획득
-  Future<ApiResponse<PointHistory>> earnPointsForAlarmSuccess({
+  Future<ApiResponse<PointTransaction>> earnPointsForAlarmSuccess({
     required String alarmId,
     int points = 10,
   }) async {
@@ -97,7 +97,7 @@ class PointsApiService {
   }
 
   /// 미션 완료로 포인트 획득
-  Future<ApiResponse<PointHistory>> earnPointsForMissionComplete({
+  Future<ApiResponse<PointTransaction>> earnPointsForMissionComplete({
     required String missionId,
     required MissionType missionType,
     required int score,
@@ -122,7 +122,7 @@ class PointsApiService {
   }
 
   /// 연속 알람 성공으로 포인트 획득
-  Future<ApiResponse<PointHistory>> earnPointsForStreakBonus({
+  Future<ApiResponse<PointTransaction>> earnPointsForStreakBonus({
     required int streakDays,
     int basePoints = 20,
   }) async {
@@ -143,7 +143,7 @@ class PointsApiService {
   }
 
   /// 스킨 구매로 포인트 사용
-  Future<ApiResponse<PointHistory>> spendPointsForSkin({
+  Future<ApiResponse<PointTransaction>> spendPointsForSkin({
     required String skinId,
     required int price,
   }) async {
@@ -155,7 +155,7 @@ class PointsApiService {
   }
 
   /// 부가 기능 구매로 포인트 사용
-  Future<ApiResponse<PointHistory>> spendPointsForFeature({
+  Future<ApiResponse<PointTransaction>> spendPointsForFeature({
     required String featureId,
     required int price,
   }) async {
@@ -167,16 +167,16 @@ class PointsApiService {
   }
 
   /// 최근 포인트 내역 조회
-  Future<ApiResponse<List<PointHistory>>> getRecentPointHistory({int limit = 20}) async {
-    return getPointHistory(limit: limit, offset: 0);
+  Future<ApiResponse<List<PointTransaction>>> getRecentPointTransaction({int limit = 20}) async {
+    return getPointTransaction(limit: limit, offset: 0);
   }
 
   /// 획득한 포인트 내역만 조회
-  Future<ApiResponse<List<PointHistory>>> getEarnedPointHistory({
+  Future<ApiResponse<List<PointTransaction>>> getEarnedPointTransaction({
     int? limit,
     int? offset,
   }) async {
-    return getPointHistory(
+    return getPointTransaction(
       type: PointTransactionType.earned,
       limit: limit,
       offset: offset,
@@ -184,11 +184,11 @@ class PointsApiService {
   }
 
   /// 사용한 포인트 내역만 조회
-  Future<ApiResponse<List<PointHistory>>> getSpentPointHistory({
+  Future<ApiResponse<List<PointTransaction>>> getSpentPointTransaction({
     int? limit,
     int? offset,
   }) async {
-    return getPointHistory(
+    return getPointTransaction(
       type: PointTransactionType.spent,
       limit: limit,
       offset: offset,
@@ -196,14 +196,14 @@ class PointsApiService {
   }
 
   /// 특정 기간의 포인트 내역 조회
-  Future<ApiResponse<List<PointHistory>>> getPointHistoryByDateRange(
+  Future<ApiResponse<List<PointTransaction>>> getPointTransactionByDateRange(
     DateTime startDate,
     DateTime endDate, {
     int? limit,
     int? offset,
     PointTransactionType? type,
   }) async {
-    return getPointHistory(
+    return getPointTransaction(
       startDate: startDate,
       endDate: endDate,
       type: type,
@@ -266,7 +266,7 @@ class PointsApiService {
       final startDate = DateTime(targetYear, targetMonth, 1);
       final endDate = DateTime(targetYear, targetMonth + 1, 1).subtract(const Duration(days: 1));
 
-      final historyResponse = await getPointHistoryByDateRange(startDate, endDate);
+      final historyResponse = await getPointTransactionByDateRange(startDate, endDate);
       
       if (!historyResponse.success || historyResponse.data == null) {
         return ApiResponse.error('월별 포인트 통계 조회 실패');

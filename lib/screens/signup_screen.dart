@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/widgets/buttons/primary_button.dart';
 import '../core/widgets/inputs/app_text_field.dart';
-import 'dashboard_screen.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -183,7 +182,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         Text(
                           'AI와 함께하는 스마트 알람 서비스',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -224,7 +223,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                             onPressed: () {
                               setState(() {
@@ -247,7 +246,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                             onPressed: () {
                               setState(() {
@@ -287,14 +286,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                       TextSpan(
                                         text: '과 ',
                                         style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                         ),
                                       ),
                                       const TextSpan(text: '개인정보처리방침'),
                                       TextSpan(
                                         text: '에 동의합니다.',
                                         style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                         ),
                                       ),
                                     ],

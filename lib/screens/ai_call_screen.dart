@@ -10,12 +10,14 @@ import '../core/design_system/app_radius.dart';
 /// OpenAI Realtime API와 WebRTC를 활용한 AI 음성 통화 인터페이스
 class AICallScreen extends StatefulWidget {
   final String alarmTitle;
+  final int? alarmId;
   final VoidCallback? onCallEnded;
   final VoidCallback? onAlarmDismissed;
 
   const AICallScreen({
     super.key,
     required this.alarmTitle,
+    this.alarmId,
     this.onCallEnded,
     this.onAlarmDismissed,
   });
@@ -172,7 +174,10 @@ class _AICallScreenState extends State<AICallScreen>
       systemNavigationBarColor: Colors.transparent,
     ));
 
-    final success = await _callService.startCall(widget.alarmTitle);
+    final success = await _callService.startCall(
+      widget.alarmTitle,
+      alarmId: widget.alarmId,
+    );
     if (!success) {
       _showErrorDialog('AI 통화를 시작할 수 없습니다.');
     }
@@ -287,9 +292,9 @@ class _AICallScreenState extends State<AICallScreen>
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.2),
+          color: statusColor.withValues(alpha: 0.2),
           borderRadius: AppRadius.xl,
-          border: Border.all(color: statusColor.withOpacity(0.5)),
+          border: Border.all(color: statusColor.withValues(alpha: 0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -343,7 +348,7 @@ class _AICallScreenState extends State<AICallScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _getAvatarGradientColors().first.withOpacity(0.4),
+                        color: _getAvatarGradientColors().first.withValues(alpha: 0.4),
                         blurRadius: 30,
                         spreadRadius: 10,
                       ),
@@ -393,7 +398,7 @@ class _AICallScreenState extends State<AICallScreen>
           size: const Size(300, 300),
           painter: WavePainter(
             animation: _waveAnimation.value,
-            color: _getAvatarGradientColors().first.withOpacity(0.3),
+            color: _getAvatarGradientColors().first.withValues(alpha: 0.3),
           ),
         );
       },
@@ -432,9 +437,9 @@ class _AICallScreenState extends State<AICallScreen>
       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: AppRadius.md,
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: SingleChildScrollView(
         child: Text(
@@ -459,7 +464,7 @@ class _AICallScreenState extends State<AICallScreen>
           icon: _callService.isMuted ? Icons.mic_off : Icons.mic,
           backgroundColor: _callService.isMuted 
               ? Colors.red 
-              : Colors.white.withOpacity(0.2),
+              : Colors.white.withValues(alpha: 0.2),
           iconColor: Colors.white,
           size: 60,
           onPressed: _toggleMute,
@@ -479,7 +484,7 @@ class _AICallScreenState extends State<AICallScreen>
           icon: _callService.isSpeakerOn ? Icons.volume_up : Icons.volume_down,
           backgroundColor: _callService.isSpeakerOn
               ? Colors.blue
-              : Colors.white.withOpacity(0.2),
+              : Colors.white.withValues(alpha: 0.2),
           iconColor: Colors.white,
           size: 60,
           onPressed: _toggleSpeaker,
@@ -540,8 +545,11 @@ class _AICallScreenState extends State<AICallScreen>
     final canDismiss = await _callService.requestAlarmDismissal();
     
     if (canDismiss) {
+      // 계측 로그: 해제 가능 판단 지점
+      debugPrint('AICallScreen: requestAlarmDismissal -> canDismiss=true');
       _showAlarmDismissDialog();
     } else {
+      debugPrint('AICallScreen: requestAlarmDismissal -> canDismiss=false');
       _showMessage('아직 완전히 깨어있지 않은 것 같아요. 조금 더 대화해보세요!');
     }
   }
@@ -550,6 +558,7 @@ class _AICallScreenState extends State<AICallScreen>
   Future<void> _endCall() async {
     // 햅틱 피드백
     HapticFeedback.heavyImpact();
+    debugPrint('AICallScreen: endCall triggered (source=explicit)');
     
     await _callService.endCall();
     
@@ -586,6 +595,7 @@ class _AICallScreenState extends State<AICallScreen>
             onPressed: () {
               Navigator.of(context).pop();
               widget.onAlarmDismissed?.call();
+              debugPrint('AICallScreen: endCall triggered (source=dismiss dialog confirm)');
               _endCall();
             },
             style: ElevatedButton.styleFrom(
@@ -616,6 +626,7 @@ class _AICallScreenState extends State<AICallScreen>
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
+              debugPrint('AICallScreen: endCall triggered (source=error dialog confirm)');
               _endCall();
             },
             child: const Text('확인'),

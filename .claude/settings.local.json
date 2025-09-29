@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter build:*)",
+      "Read(//c/Users/brand/AndroidStudioProjects/**)",
+      "Bash(dart analyze:*)",
+      "WebFetch(domain:prod.proproject.my)",
+      "Bash(flutter analyze:*)",
+      "Bash(find:*)",
+      "Bash(nc:*)",
+      "Bash(timeout 30 flutter build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

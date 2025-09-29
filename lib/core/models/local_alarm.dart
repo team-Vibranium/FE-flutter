@@ -6,7 +6,7 @@ part 'local_alarm.g.dart';
 @JsonSerializable()
 class LocalAlarm {
   /// 알람 고유 ID
-  final String id;
+  final int id;
   
   /// 알람 제목
   final String title;
@@ -143,7 +143,7 @@ class LocalAlarm {
 
   /// 알람 복사 (일부 필드 수정)
   LocalAlarm copyWith({
-    String? id,
+    int? id,
     String? title,
     int? hour,
     int? minute,

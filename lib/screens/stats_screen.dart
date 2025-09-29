@@ -24,7 +24,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   // API에서 가져온 데이터 (임시로 Map 사용)
   Map<String, dynamic>? _pointSummary;
   Map<String, dynamic>? _statisticsOverview;
-  List<Map<String, dynamic>> _pointHistory = [];
+  List<Map<String, dynamic>> _pointTransaction = [];
   Map<String, dynamic>? _monthlyStats;
   Map<String, dynamic>? _weeklyStats;
 
@@ -51,7 +51,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
           apiService.statistics.getOverview(), // API 스펙에 맞게 수정
           apiService.statistics.getMonthlyStatistics(DateTime.now()),
           apiService.statistics.getWeeklyStatistics(DateTime.now()),
-          apiService.points.getPointHistory(limit: 10),
+          apiService.points.getPointTransaction(limit: 10),
         ]);
 
         if (mounted) {
@@ -119,14 +119,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             // 포인트 내역
             if (results[4].success && results[4].data != null) {
               final historyData = results[4].data! as List<dynamic>;
-              _pointHistory = historyData.map<Map<String, dynamic>>((item) => {
+              _pointTransaction = historyData.map<Map<String, dynamic>>((item) => {
                 'amount': (item as Map<String, dynamic>)['amount'],
                 'type': (item as Map<String, dynamic>)['type'],
                 'description': (item as Map<String, dynamic>)['description'],
                 'createdAt': (item as Map<String, dynamic>)['createdAt'],
               }).toList();
             } else {
-              _pointHistory = [];
+              _pointTransaction = [];
             }
             
             _isLoading = false;
@@ -141,7 +141,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             _statisticsOverview = null;
             _monthlyStats = null;
             _weeklyStats = null;
-            _pointHistory = [];
+            _pointTransaction = [];
             _isLoading = false;
           });
         }
@@ -343,9 +343,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -460,7 +460,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
           borderRadius: BorderRadius.circular(6),
           boxShadow: isSelected ? [
             BoxShadow(
-              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -483,7 +483,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
 
   Widget _buildPointsHistory() {
     // 필터링된 히스토리
-    List<Map<String, dynamic>> filteredHistory = _pointHistory.where((item) {
+    List<Map<String, dynamic>> filteredHistory = _pointTransaction.where((item) {
       switch (_selectedFilter) {
         case 'plus':
           return item['amount'] > 0;
@@ -534,14 +534,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                 ),
               )
             else
-              ...filteredHistory.map((item) => _buildPointHistoryItem(item)),
+              ...filteredHistory.map((item) => _buildPointTransactionItem(item)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPointHistoryItem(Map<String, dynamic> item) {
+  Widget _buildPointTransactionItem(Map<String, dynamic> item) {
     final isPositive = item['amount'] > 0;
     final isConsumption = item['type'] == 'consumption';
     final color = isPositive ? Colors.green : Colors.red;
@@ -554,7 +554,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isConsumption ? Colors.orange.withOpacity(0.3) : Colors.blue.withOpacity(0.3),
+          color: isConsumption ? Colors.orange.withValues(alpha: 0.3) : Colors.blue.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -768,7 +768,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
@@ -1018,7 +1018,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: color, width: 1.5),
                 ),
@@ -1028,7 +1028,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: color.withOpacity(0.8),
+                      color: color.withValues(alpha: 0.8),
                     ),
                   ),
                 ),

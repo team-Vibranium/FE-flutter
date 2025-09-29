@@ -124,12 +124,10 @@ final response = await apiService.user.changePassword(request);
 
 ```dart
 final response = await apiService.callLog.createCallLog(
-  alarmTitle: '아침 7시 알람',
-  startTime: DateTime.now().subtract(Duration(minutes: 5)),
-  endTime: DateTime.now(),
-  duration: 300, // 5분
-  isSuccessful: true,
-  transcript: 'AI와의 대화 내용',
+  callStart: DateTime.now().subtract(Duration(minutes: 5)),
+  callEnd: DateTime.now(),
+  result: 'SUCCESS', // 또는 'FAIL_NO_TALK' | 'FAIL_SNOOZE'
+  snoozeCount: 0,
 );
 ```
 

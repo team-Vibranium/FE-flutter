@@ -7,7 +7,7 @@ part of 'local_alarm.dart';
 // **************************************************************************
 
 LocalAlarm _$LocalAlarmFromJson(Map<String, dynamic> json) => LocalAlarm(
-  id: json['id'] as String,
+  id: (json['id'] as num).toInt(),
   title: json['title'] as String,
   hour: (json['hour'] as num).toInt(),
   minute: (json['minute'] as num).toInt(),
@@ -24,6 +24,7 @@ LocalAlarm _$LocalAlarmFromJson(Map<String, dynamic> json) => LocalAlarm(
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   label: json['label'] as String?,
+  type: json['type'] as String? ?? 'normal',
 );
 
 Map<String, dynamic> _$LocalAlarmToJson(LocalAlarm instance) =>
@@ -41,4 +42,5 @@ Map<String, dynamic> _$LocalAlarmToJson(LocalAlarm instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'label': instance.label,
+      'type': instance.type,
     };

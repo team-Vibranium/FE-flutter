@@ -282,7 +282,7 @@ class UserApiService {
       return await _baseApi.post<Map<String, dynamic>>(
         '/api/users/me/data-export',
         body: {'requestedAt': DateTime.now().toIso8601String()},
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       return ApiResponse.error('데이터 내보내기 요청 오류: $e');

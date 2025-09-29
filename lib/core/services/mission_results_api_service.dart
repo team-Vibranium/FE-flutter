@@ -13,7 +13,7 @@ class MissionResultsApiService {
   /// 미션 결과 저장 (간소화)
   /// POST /api/mission-results
   Future<ApiResponse<Map<String, dynamic>>> createMissionResult({
-    required String callLogId,
+    required int callLogId,
     required String missionType,
     required bool success,
     int? score,
@@ -34,7 +34,7 @@ class MissionResultsApiService {
       return await _baseApi.post<Map<String, dynamic>>(
         '/api/mission-results',
         body: body,
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       // 실제 API가 없는 경우 더미 데이터 반환
@@ -121,7 +121,7 @@ class MissionResultsApiService {
       return await _baseApi.get<Map<String, dynamic>>(
         '/api/mission-results/stats',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       // API가 구현되지 않은 경우 더미 데이터 계산
@@ -135,7 +135,7 @@ class MissionResultsApiService {
         if (resultsResponse.success && resultsResponse.data != null) {
           final results = resultsResponse.data!;
           final totalMissions = results.length;
-          final successfulMissions = results.where((r) => r.isCompleted).length;
+          final successfulMissions = results.where((r) => r.success).length;
           final failedMissions = totalMissions - successfulMissions;
           final successRate = totalMissions > 0 ? (successfulMissions / totalMissions * 100) : 0.0;
 
@@ -144,7 +144,7 @@ class MissionResultsApiService {
           for (final missionType in MissionType.values) {
             final typeMissions = results.where((r) => r.missionType == missionType).toList();
             final typeTotal = typeMissions.length;
-            final typeSuccess = typeMissions.where((r) => r.isCompleted).length;
+            final typeSuccess = typeMissions.where((r) => r.success).length;
             
             if (typeTotal > 0) {
               missionTypeStats[missionType.name] = {

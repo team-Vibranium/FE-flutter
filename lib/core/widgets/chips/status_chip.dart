@@ -30,10 +30,10 @@ class StatusChip extends StatelessWidget {
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: useWhiteBackground ? Colors.white : color.withOpacity(0.1),
+          color: useWhiteBackground ? Colors.white : color.withValues(alpha: 0.1),
           borderRadius: AppRadius.sm,
           border: Border.all(
-            color: useWhiteBackground ? color : color.withOpacity(0.3),
+            color: useWhiteBackground ? color : color.withValues(alpha: 0.3),
             width: useWhiteBackground ? 1.5 : 1.0,
           ),
         ),

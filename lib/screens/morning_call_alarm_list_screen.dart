@@ -335,7 +335,7 @@ class _MorningCallAlarmListScreenState extends ConsumerState<MorningCallAlarmLis
                   child: OutlinedButton.icon(
                     onPressed: () => _testMorningCall(title),
                     icon: const Icon(Icons.play_arrow, size: 18),
-                    label: const Text('테스트'),
+                    label: const Text('실행'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.indigo,
                       side: BorderSide(color: Colors.indigo),

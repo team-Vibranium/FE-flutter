@@ -1,6 +1,8 @@
 // API 응답 모델들
 // 노션 API 스펙에 맞춰 정의된 데이터 모델들
 
+import '../utils/date_time_utils.dart';
+
 /// 기본 API 응답 래퍼
 class ApiResponse<T> {
   final bool success;
@@ -133,6 +135,10 @@ class LoginResponse {
     required this.token,
   });
 
+  // accessToken과 refreshToken getter 추가 (호환성을 위해)
+  String get accessToken => token;
+  String get refreshToken => token; // 현재 구조에서는 같은 토큰 사용
+
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
     print('🔍 LoginResponse.fromJson 시작');
     print('🔍 전체 json: $json');
@@ -154,148 +160,429 @@ class LoginResponse {
   }
 }
 
-/// 통화 기록 모델
+/// 전화 알람 모델
+class PhoneAlarm {
+  final int alarmId;
+  final DateTime alarmTime;
+  final String instructions;
+  final String voice;
+  final String voiceDescription;
+  final bool active;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const PhoneAlarm({
+    required this.alarmId,
+    required this.alarmTime,
+    required this.instructions,
+    required this.voice,
+    required this.voiceDescription,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory PhoneAlarm.fromJson(Map<String, dynamic> json) {
+    return PhoneAlarm(
+      alarmId: json['alarmId'] as int,
+      alarmTime: DateTime.parse(json['alarmTime'] as String),
+      instructions: json['instructions'] as String,
+      voice: json['voice'] as String,
+      voiceDescription: json['voiceDescription'] as String,
+      active: json['active'] as bool,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'alarmId': alarmId,
+      'alarmTime': alarmTime.toIso8601String(),
+      'instructions': instructions,
+      'voice': voice,
+      'voiceDescription': voiceDescription,
+      'active': active,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+}
+
+/// 알람 생성 요청 모델
+class CreateAlarmRequest {
+  final DateTime alarmTime;
+  final String instructions;
+  final String voice;
+
+  const CreateAlarmRequest({
+    required this.alarmTime,
+    required this.instructions,
+    required this.voice,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'alarmTime': alarmTime.toIso8601String(),
+      'instructions': instructions,
+      'voice': voice,
+    };
+  }
+}
+
+/// 알람 수정 요청 모델
+class UpdateAlarmRequest {
+  final DateTime alarmTime;
+  final String instructions;
+  final String voice;
+
+  const UpdateAlarmRequest({
+    required this.alarmTime,
+    required this.instructions,
+    required this.voice,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'alarmTime': alarmTime.toIso8601String(),
+      'instructions': instructions,
+      'voice': voice,
+    };
+  }
+}
+
+/// 통화 기록 모델 (API 명세서에 맞게 업데이트)
 class CallLog {
-  final String id;
-  final String userId;
-  final String alarmTitle;
-  final DateTime startTime;
-  final DateTime? endTime;
-  final int duration; // 초 단위
-  final bool isSuccessful;
-  final String? transcript;
-  final Map<String, dynamic>? metadata;
+  final int id;
+  final User? user;
+  final DateTime callStart;
+  final DateTime? callEnd;
+  final String result; // SUCCESS, FAIL_NO_TALK, FAIL_SNOOZE
+  final int snoozeCount;
+  final String? conversationData;
+  final DateTime createdAt;
+  final bool successful;
+  final List<Utterance>? conversationList;
 
   const CallLog({
     required this.id,
-    required this.userId,
-    required this.alarmTitle,
-    required this.startTime,
-    this.endTime,
-    required this.duration,
-    required this.isSuccessful,
-    this.transcript,
-    this.metadata,
+    this.user,
+    required this.callStart,
+    this.callEnd,
+    required this.result,
+    required this.snoozeCount,
+    this.conversationData,
+    required this.createdAt,
+    required this.successful,
+    this.conversationList,
   });
+
+  // Convenience getters for backward compatibility
+  bool get isSuccessful => successful;
+  DateTime get startTime => callStart;
+  int get duration => callEnd != null ? callEnd!.difference(callStart).inSeconds : 0;
+  String get transcript => conversationData ?? '';
 
   factory CallLog.fromJson(Map<String, dynamic> json) {
     return CallLog(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      alarmTitle: json['alarmTitle'] as String,
-      startTime: DateTime.parse(json['startTime'] as String),
-      endTime: json['endTime'] != null ? DateTime.parse(json['endTime'] as String) : null,
-      duration: json['duration'] as int,
-      isSuccessful: json['isSuccessful'] as bool,
-      transcript: json['transcript'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      id: json['id'] as int,
+      user: json['user'] != null ? User.fromJson(json['user']) : null,
+      callStart: DateTimeUtils.parseUtcToLocalSafe(json['callStart'] as String),
+      callEnd: json['callEnd'] != null ? DateTimeUtils.parseUtcToLocalSafe(json['callEnd'] as String) : null,
+      result: json['result'] as String,
+      snoozeCount: json['snoozeCount'] as int,
+      conversationData: json['conversationData'] as String?,
+      createdAt: DateTimeUtils.parseUtcToLocalSafe(json['createdAt'] as String),
+      successful: json['successful'] as bool,
+      conversationList: json['conversationList'] != null
+          ? (json['conversationList'] as List)
+              .map((e) => Utterance.fromJson(e))
+              .toList()
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'userId': userId,
-      'alarmTitle': alarmTitle,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime?.toIso8601String(),
-      'duration': duration,
-      'isSuccessful': isSuccessful,
-      'transcript': transcript,
-      'metadata': metadata,
+      'user': user?.toJson(),
+      'callStart': callStart.toIso8601String(),
+      'callEnd': callEnd?.toIso8601String(),
+      'result': result,
+      'snoozeCount': snoozeCount,
+      'conversationData': conversationData,
+      'createdAt': createdAt.toIso8601String(),
+      'successful': successful,
+      'conversationList': conversationList?.map((e) => e.toJson()).toList(),
     };
   }
 }
 
-/// 포인트 현황 모델
+/// 대화 발화 모델 (API 명세서에서 추가됨)
+class Utterance {
+  final String speaker; // user, assistant, system
+  final String text;
+  final DateTime timestamp;
+
+  const Utterance({
+    required this.speaker,
+    required this.text,
+    required this.timestamp,
+  });
+
+  factory Utterance.fromJson(Map<String, dynamic> json) {
+    return Utterance(
+      speaker: json['speaker'] as String,
+      text: json['text'] as String,
+      timestamp: DateTimeUtils.parseUtcToLocalSafe(json['timestamp'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'speaker': speaker,
+      'text': text,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+}
+
+/// OpenAI Realtime API 세션 응답 모델
+class SessionResponse {
+  final String ephemeralKey;
+  final String sessionId;
+  final int expiresInSeconds;
+
+  const SessionResponse({
+    required this.ephemeralKey,
+    required this.sessionId,
+    required this.expiresInSeconds,
+  });
+
+  factory SessionResponse.fromJson(Map<String, dynamic> json) {
+    return SessionResponse(
+      ephemeralKey: json['ephemeralKey'] as String,
+      sessionId: json['sessionId'] as String,
+      expiresInSeconds: json['expiresInSeconds'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'ephemeralKey': ephemeralKey,
+      'sessionId': sessionId,
+      'expiresInSeconds': expiresInSeconds,
+    };
+  }
+}
+
+/// 통화 시작 요청 모델
+class CallStartRequest {
+  final String sessionId;
+
+  const CallStartRequest({
+    required this.sessionId,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sessionId': sessionId,
+    };
+  }
+}
+
+/// 통화 시작 응답 모델
+class CallStartResponse {
+  final int callId;
+  final String sessionId;
+  final DateTime callStart;
+
+  const CallStartResponse({
+    required this.callId,
+    required this.sessionId,
+    required this.callStart,
+  });
+
+  factory CallStartResponse.fromJson(Map<String, dynamic> json) {
+    return CallStartResponse(
+      callId: json['callId'] as int,
+      sessionId: json['sessionId'] as String,
+      callStart: DateTime.parse(json['callStart'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'callId': callId,
+      'sessionId': sessionId,
+      'callStart': callStart.toIso8601String(),
+    };
+  }
+}
+
+/// 통화 종료 요청 모델
+class CallEndRequest {
+  final DateTime callEnd;
+  final String result;
+  final int snoozeCount;
+
+  const CallEndRequest({
+    required this.callEnd,
+    required this.result,
+    this.snoozeCount = 0,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'callEnd': callEnd.toIso8601String(),
+      'result': result,
+      'snoozeCount': snoozeCount,
+    };
+  }
+}
+
+/// 대화 내용 저장 요청 모델
+class TranscriptRequest {
+  final List<Utterance> conversation;
+
+  const TranscriptRequest({
+    required this.conversation,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'conversation': conversation.map((e) => e.toJson()).toList(),
+    };
+  }
+}
+
+/// 통화 상세 정보 응답 모델
+class CallDetailResponse {
+  final int callId;
+  final DateTime callStart;
+  final DateTime? callEnd;
+  final String result;
+  final int snoozeCount;
+  final List<Utterance>? conversation;
+  final DateTime createdAt;
+
+  const CallDetailResponse({
+    required this.callId,
+    required this.callStart,
+    this.callEnd,
+    required this.result,
+    required this.snoozeCount,
+    this.conversation,
+    required this.createdAt,
+  });
+
+  factory CallDetailResponse.fromJson(Map<String, dynamic> json) {
+    return CallDetailResponse(
+      callId: json['callId'] as int,
+      callStart: DateTimeUtils.parseUtcToLocalSafe(json['callStart'] as String),
+      callEnd: json['callEnd'] != null ? DateTimeUtils.parseUtcToLocalSafe(json['callEnd'] as String) : null,
+      result: json['result'] as String,
+      snoozeCount: json['snoozeCount'] as int,
+      conversation: json['conversation'] != null
+          ? (json['conversation'] as List)
+              .map((e) => Utterance.fromJson(e))
+              .toList()
+          : null,
+      createdAt: DateTimeUtils.parseUtcToLocalSafe(json['createdAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'callId': callId,
+      'callStart': callStart.toIso8601String(),
+      'callEnd': callEnd?.toIso8601String(),
+      'result': result,
+      'snoozeCount': snoozeCount,
+      'conversation': conversation?.map((e) => e.toJson()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+}
+
+/// 포인트 현황 모델 (API 명세서에 맞게 업데이트)
 class PointSummary {
+  final int consumptionPoints;
+  final int gradePoints;
   final int totalPoints;
+  final String currentGrade;
   final int earnedToday;
   final int spentToday;
-  final int earnedThisWeek;
-  final int spentThisWeek;
-  final int earnedThisMonth;
-  final int spentThisMonth;
 
   const PointSummary({
+    required this.consumptionPoints,
+    required this.gradePoints,
     required this.totalPoints,
+    required this.currentGrade,
     required this.earnedToday,
     required this.spentToday,
-    required this.earnedThisWeek,
-    required this.spentThisWeek,
-    required this.earnedThisMonth,
-    required this.spentThisMonth,
   });
 
   factory PointSummary.fromJson(Map<String, dynamic> json) {
     return PointSummary(
+      consumptionPoints: json['consumptionPoints'] as int,
+      gradePoints: json['gradePoints'] as int,
       totalPoints: json['totalPoints'] as int,
-      earnedToday: json['earnedToday'] as int,
-      spentToday: json['spentToday'] as int,
-      earnedThisWeek: json['earnedThisWeek'] as int,
-      spentThisWeek: json['spentThisWeek'] as int,
-      earnedThisMonth: json['earnedThisMonth'] as int,
-      spentThisMonth: json['spentThisMonth'] as int,
+      currentGrade: json['currentGrade'] as String,
+      earnedToday: json['earnedToday'] as int? ?? 0,
+      spentToday: json['spentToday'] as int? ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'consumptionPoints': consumptionPoints,
+      'gradePoints': gradePoints,
       'totalPoints': totalPoints,
+      'currentGrade': currentGrade,
       'earnedToday': earnedToday,
       'spentToday': spentToday,
-      'earnedThisWeek': earnedThisWeek,
-      'spentThisWeek': spentThisWeek,
-      'earnedThisMonth': earnedThisMonth,
-      'spentThisMonth': spentThisMonth,
     };
   }
 }
 
-/// 포인트 내역 모델
-class PointHistory {
-  final String id;
-  final String userId;
+/// 포인트 트랜잭션 모델 (API 명세서에 맞게 업데이트)
+class PointTransaction {
+  final int id;
+  final String type; // GRADE 또는 CONSUMPTION
   final int amount;
-  final PointTransactionType type;
   final String description;
   final DateTime createdAt;
-  final Map<String, dynamic>? metadata;
+  final String? relatedAlarmId;
 
-  const PointHistory({
+  const PointTransaction({
     required this.id,
-    required this.userId,
-    required this.amount,
     required this.type,
+    required this.amount,
     required this.description,
     required this.createdAt,
-    this.metadata,
+    this.relatedAlarmId,
   });
 
-  factory PointHistory.fromJson(Map<String, dynamic> json) {
-    return PointHistory(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
+  factory PointTransaction.fromJson(Map<String, dynamic> json) {
+    return PointTransaction(
+      id: json['id'] as int,
+      type: json['type'] as String,
       amount: json['amount'] as int,
-      type: PointTransactionType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => PointTransactionType.earned,
-      ),
       description: json['description'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      relatedAlarmId: json['relatedAlarmId'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'userId': userId,
+      'type': type,
       'amount': amount,
-      'type': type.name,
       'description': description,
       'createdAt': createdAt.toIso8601String(),
-      'metadata': metadata,
+      'relatedAlarmId': relatedAlarmId,
     };
   }
 }
@@ -306,65 +593,61 @@ enum PointTransactionType {
   spent,  // 사용
 }
 
-/// 미션 결과 모델
+/// 미션 결과 모델 (API 명세서에 맞게 업데이트)
 class MissionResult {
-  final String id;
-  final String userId;
-  final String alarmId;
-  final MissionType missionType;
-  final bool isCompleted;
-  final int score;
-  final DateTime completedAt;
-  final Map<String, dynamic>? resultData;
+  final int id;
+  final int callLogId;
+  final String missionType; // API에서는 문자열로 관리
+  final bool success;
+  final int? score;
 
   const MissionResult({
     required this.id,
-    required this.userId,
-    required this.alarmId,
+    required this.callLogId,
     required this.missionType,
-    required this.isCompleted,
-    required this.score,
-    required this.completedAt,
-    this.resultData,
+    required this.success,
+    this.score,
   });
 
   factory MissionResult.fromJson(Map<String, dynamic> json) {
     return MissionResult(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      alarmId: json['alarmId'] as String,
-      missionType: MissionType.values.firstWhere(
-        (e) => e.name == json['missionType'],
-        orElse: () => MissionType.math,
-      ),
-      isCompleted: json['isCompleted'] as bool,
-      score: json['score'] as int,
-      completedAt: DateTime.parse(json['completedAt'] as String),
-      resultData: json['resultData'] as Map<String, dynamic>?,
+      id: json['id'] as int,
+      callLogId: json['callLogId'] as int,
+      missionType: json['missionType'] as String,
+      success: json['success'] as bool,
+      score: json['score'] as int?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'userId': userId,
-      'alarmId': alarmId,
-      'missionType': missionType.name,
-      'isCompleted': isCompleted,
-      'score': score,
-      'completedAt': completedAt.toIso8601String(),
-      'resultData': resultData,
+      'callLogId': callLogId,
+      'missionType': missionType,
+      'success': success,
+      if (score != null) 'score': score,
     };
   }
 }
 
-/// 미션 타입
+/// 미션 타입 (API 명세서에 맞게 업데이트)
 enum MissionType {
-  math,     // 수학 문제
-  memory,   // 기억 게임
-  puzzle,   // 퍼즐
-  voice,    // 음성 인식
-  walking,  // 걷기
+  PUZZLE,   // 퍼즐
+  MATH,     // 수학 문제
+  MEMORY,   // 기억 게임
+  QUIZ,     // 퀴즈
+}
+
+/// 음성 타입 (API 명세서에서 추가됨)
+enum VoiceType {
+  ALLOY,    // 균형 잡힌 중성적 목소리
+  ASH,      // 부드럽고 차분한 목소리
+  BALLAD,   // 서정적이고 따뜻한 목소리
+  CORAL,    // 활기찬 여성 목소리
+  ECHO,     // 맑고 선명한 목소리
+  SAGE,     // 차분하고 부드러운 목소리
+  SHIMMER,  // 밝고 경쾌한 목소리
+  VERSE,    // 리드미컬하고 표현력 있는 목소리
 }
 
 /// 통계 개요 모델
@@ -378,6 +661,11 @@ class StatisticsOverview {
   final double last30DaysSuccessRate;
   final double monthlySuccessRate;
   final int monthlyPoints;
+  final double averageCallTime; // 추가된 필드
+  final int successfulWakeups; // 추가된 필드
+  final int totalCallTime; // 추가된 필드
+  final int totalPoints; // 추가된 필드
+  final int completedMissions; // 추가된 필드
 
   const StatisticsOverview({
     required this.totalAlarms,
@@ -389,6 +677,11 @@ class StatisticsOverview {
     required this.last30DaysSuccessRate,
     required this.monthlySuccessRate,
     required this.monthlyPoints,
+    required this.averageCallTime,
+    required this.successfulWakeups,
+    required this.totalCallTime,
+    required this.totalPoints,
+    required this.completedMissions,
   });
 
   factory StatisticsOverview.fromJson(Map<String, dynamic> json) {
@@ -402,6 +695,11 @@ class StatisticsOverview {
       last30DaysSuccessRate: (json['last30DaysSuccessRate'] as num?)?.toDouble() ?? 0.0,
       monthlySuccessRate: (json['monthlySuccessRate'] as num?)?.toDouble() ?? 0.0,
       monthlyPoints: json['monthlyPoints'] as int? ?? 0,
+      averageCallTime: (json['averageCallTime'] as num?)?.toDouble() ?? 0.0,
+      successfulWakeups: json['successfulWakeups'] as int? ?? 0,
+      totalCallTime: json['totalCallTime'] as int? ?? 0,
+      totalPoints: json['totalPoints'] as int? ?? 0,
+      completedMissions: json['completedMissions'] as int? ?? 0,
     );
   }
 
@@ -416,6 +714,11 @@ class StatisticsOverview {
       'last30DaysSuccessRate': last30DaysSuccessRate,
       'monthlySuccessRate': monthlySuccessRate,
       'monthlyPoints': monthlyPoints,
+      'averageCallTime': averageCallTime,
+      'successfulWakeups': successfulWakeups,
+      'totalCallTime': totalCallTime,
+      'totalPoints': totalPoints,
+      'completedMissions': completedMissions,
     };
   }
 }
@@ -615,35 +918,38 @@ class LoginRequest {
   }
 }
 
-/// 비밀번호 변경 요청 모델
+/// 비밀번호 변경 요청 모델 (API 명세서에 맞게 업데이트)
 class PasswordChangeRequest {
   final String currentPassword;
   final String newPassword;
+  final String confirmPassword;
 
   const PasswordChangeRequest({
     required this.currentPassword,
     required this.newPassword,
+    required this.confirmPassword,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'currentPassword': currentPassword,
       'newPassword': newPassword,
+      'confirmPassword': confirmPassword,
     };
   }
 }
 
-/// 닉네임 변경 요청 모델
+/// 닉네임 변경 요청 모델 (API 명세서에 맞게 업데이트)
 class NicknameChangeRequest {
-  final String nickname;
+  final String newNickname;
 
   const NicknameChangeRequest({
-    required this.nickname,
+    required this.newNickname,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'nickname': nickname,
+      'newNickname': newNickname,
     };
   }
 }
@@ -686,6 +992,31 @@ class EarnPointsRequest {
       'amount': amount,
       'description': description,
       'metadata': metadata,
+    };
+  }
+}
+
+/// 스누즈 응답 모델
+class SnoozeResponse {
+  final int currentSnoozeCount;
+  final bool shouldFail;
+
+  const SnoozeResponse({
+    required this.currentSnoozeCount,
+    required this.shouldFail,
+  });
+
+  factory SnoozeResponse.fromJson(Map<String, dynamic> json) {
+    return SnoozeResponse(
+      currentSnoozeCount: json['currentSnoozeCount'] as int,
+      shouldFail: json['shouldFail'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'currentSnoozeCount': currentSnoozeCount,
+      'shouldFail': shouldFail,
     };
   }
 }

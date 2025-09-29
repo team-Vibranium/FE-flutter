@@ -46,7 +46,7 @@ dependencies:
   sqflite: ^2.3.0
   
   # 알람 관리
-  flutter_local_notifications: ^16.3.2
+  flutter_local_notifications: ^17.2.3
   
   # JSON 직렬화
   json_annotation: ^4.8.1
@@ -59,10 +59,13 @@ dependencies:
   timezone: ^0.9.4
   
   # AI 통화 기능 (WebRTC 제외)
-  flutter_webrtc: ^0.9.46
+  flutter_webrtc: ^1.2.0
   permission_handler: ^11.3.1
   web_socket_channel: ^2.4.0
   http: ^1.1.0
+  
+  # 오디오 재생
+  audioplayers: ^6.0.0
   
   # GPT Realtime API용 추가 패키지
   socket_io_client: ^2.0.3+1

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -166,9 +167,12 @@ class LocalAlarmNotificationService {
         iOS: iosDetails,
       );
       
+      // payload에 alarmType 포함
+      final payload = '{"alarmId": "${alarm.id}", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+      
       // 알림 스케줄링
       await _flutterLocalNotificationsPlugin.zonedSchedule(
-        int.parse(alarm.id.replaceAll('alarm_', '')),
+        alarm.id,
         alarm.title,
         alarm.label ?? '알람이 울렸습니다',
         tz.TZDateTime.from(nextAlarmTime, tz.local),
@@ -176,7 +180,7 @@ class LocalAlarmNotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        payload: alarm.id,
+        payload: payload,
       );
       
       // 반복 알람인 경우 다음 스케줄도 예약
@@ -202,7 +206,7 @@ class LocalAlarmNotificationService {
       final weekday = checkDate.weekday % 7;
       
       if (alarm.repeatDays.contains(weekday)) {
-        final notificationId = int.parse(alarm.id.replaceAll('alarm_', '')) + i * 1000;
+        final notificationId = alarm.id + i * 1000;
         
         final androidDetails = AndroidNotificationDetails(
           'alarm_channel',
@@ -229,6 +233,9 @@ class LocalAlarmNotificationService {
           iOS: iosDetails,
         );
         
+        // payload에 alarmType 포함
+        final payload = '{"alarmId": "${alarm.id}", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+        
         await _flutterLocalNotificationsPlugin.zonedSchedule(
           notificationId,
           alarm.title,
@@ -238,16 +245,16 @@ class LocalAlarmNotificationService {
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
-          payload: alarm.id,
+          payload: payload,
         );
       }
     }
   }
   
   /// 알람 취소
-  Future<bool> cancelAlarm(String alarmId) async {
+  Future<bool> cancelAlarm(int alarmId) async {
     try {
-      final notificationId = int.parse(alarmId.replaceAll('alarm_', ''));
+      final notificationId = alarmId;
       await _flutterLocalNotificationsPlugin.cancel(notificationId);
       
       // 반복 알람의 경우 추가 스케줄도 취소
@@ -298,7 +305,7 @@ class LocalAlarmNotificationService {
   }
   
   /// 스누즈 기능
-  Future<bool> snoozeAlarm(String alarmId, int snoozeMinutes) async {
+  Future<bool> snoozeAlarm(int alarmId, int snoozeMinutes) async {
     try {
       final storageService = LocalAlarmStorageService.instance;
       final alarm = await storageService.getAlarmById(alarmId);
@@ -335,8 +342,11 @@ class LocalAlarmNotificationService {
         iOS: iosDetails,
       );
       
+      // payload에 alarmType 포함
+      final payload = '{"alarmId": "$alarmId", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+      
       await _flutterLocalNotificationsPlugin.zonedSchedule(
-        int.parse(alarmId.replaceAll('alarm_', '')) + 10000, // 스누즈용 ID
+        alarmId + 10000, // 스누즈용 ID
         '${alarm.title} (스누즈)',
         alarm.label ?? '알람이 울렸습니다',
         tz.TZDateTime.from(snoozeTime, tz.local),
@@ -344,7 +354,7 @@ class LocalAlarmNotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        payload: alarmId,
+        payload: payload,
       );
       
       // 원래 알람 다시 스케줄링 (반복 알람인 경우)
@@ -372,10 +382,14 @@ class LocalAlarmNotificationService {
     
     if (response.actionId == 'snooze' && payload != null) {
       // 스누즈 처리
-      snoozeAlarm(payload, 5); // 5분 스누즈
+      final payloadData = jsonDecode(payload);
+      final alarmId = payloadData['alarmId'] as int;
+      snoozeAlarm(alarmId, 5); // 5분 스누즈
     } else if (response.actionId == 'dismiss' && payload != null) {
       // 알람 해제 처리
-      cancelAlarm(payload);
+      final payloadData = jsonDecode(payload);
+      final alarmId = payloadData['alarmId'] as int;
+      cancelAlarm(alarmId);
     } else if (payload != null) {
       // 알람 탭 처리 - 알람 화면으로 이동
       _handleAlarmTap(payload);

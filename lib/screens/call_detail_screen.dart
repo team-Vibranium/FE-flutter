@@ -194,7 +194,7 @@ class CallDetailScreen extends StatelessWidget {
                     message['timestamp'],
                     style: TextStyle(
                       color: isUser 
-                          ? Colors.white.withOpacity(0.7)
+                          ? Colors.white.withValues(alpha: 0.7)
                           : Colors.grey[600],
                       fontSize: 11,
                     ),

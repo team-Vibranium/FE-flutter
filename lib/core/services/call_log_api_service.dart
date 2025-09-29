@@ -23,8 +23,8 @@ class CallLogApiService {
       
       if (limit != null) queryParams['limit'] = limit.toString();
       if (offset != null) queryParams['offset'] = offset.toString();
-      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String();
-      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String();
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
 
       return await _baseApi.get<List<CallLog>>(
         '/api/call-logs',
@@ -54,33 +54,24 @@ class CallLogApiService {
     }
   }
 
-  /// 통화 기록 생성
+  /// 통화 기록 생성 (Swagger 준수)
   /// POST /api/call-logs
+  /// body: { callStart, callEnd?, result, snoozeCount }
   Future<ApiResponse<CallLog>> createCallLog({
-    required String alarmTitle,
-    required DateTime startTime,
-    DateTime? endTime,
-    int duration = 0,
-    bool isSuccessful = false,
-    String? transcript,
-    Map<String, dynamic>? metadata,
+    required DateTime callStart,
+    DateTime? callEnd,
+    required String result, // SUCCESS | FAIL_NO_TALK | FAIL_SNOOZE
+    int snoozeCount = 0,
   }) async {
     try {
-      final body = {
-        'alarmTitle': alarmTitle,
-        'startTime': startTime.toIso8601String(),
-        'duration': duration,
-        'isSuccessful': isSuccessful,
+      final body = <String, dynamic>{
+        'callStart': callStart.toIso8601String(),
+        'result': result,
+        'snoozeCount': snoozeCount,
       };
 
-      if (endTime != null) {
-        body['endTime'] = endTime.toIso8601String();
-      }
-      if (transcript != null) {
-        body['transcript'] = transcript;
-      }
-      if (metadata != null) {
-        body['metadata'] = metadata;
+      if (callEnd != null) {
+        body['callEnd'] = callEnd.toIso8601String();
       }
 
       return await _baseApi.post<CallLog>(
@@ -97,20 +88,16 @@ class CallLogApiService {
   /// PUT /api/call-logs/{id}
   Future<ApiResponse<CallLog>> updateCallLog(
     String callLogId, {
-    DateTime? endTime,
-    int? duration,
-    bool? isSuccessful,
-    String? transcript,
-    Map<String, dynamic>? metadata,
+    DateTime? callEnd,
+    String? result,
+    int? snoozeCount,
   }) async {
     try {
       final body = <String, dynamic>{};
 
-      if (endTime != null) body['endTime'] = endTime.toIso8601String();
-      if (duration != null) body['duration'] = duration;
-      if (isSuccessful != null) body['isSuccessful'] = isSuccessful;
-      if (transcript != null) body['transcript'] = transcript;
-      if (metadata != null) body['metadata'] = metadata;
+      if (callEnd != null) body['callEnd'] = callEnd.toIso8601String();
+      if (result != null) body['result'] = result;
+      if (snoozeCount != null) body['snoozeCount'] = snoozeCount;
 
       return await _baseApi.put<CallLog>(
         '/api/call-logs/$callLogId',
@@ -144,7 +131,7 @@ class CallLogApiService {
   }) async {
     try {
       final queryParams = <String, String>{
-        'isSuccessful': 'true',
+        'result': 'SUCCESS',
       };
       
       if (limit != null) queryParams['limit'] = limit.toString();
@@ -238,7 +225,7 @@ class CallLogApiService {
       return await _baseApi.get<Map<String, dynamic>>(
         '/api/call-logs/stats',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
-        fromJson: (json) => json as Map<String, dynamic>,
+        fromJson: (json) => json,
       );
     } catch (e) {
       // API가 아직 구현되지 않은 경우 더미 데이터 반환
@@ -250,13 +237,14 @@ class CallLogApiService {
       if (callLogsResponse.success && callLogsResponse.data != null) {
         final callLogs = callLogsResponse.data!;
         final totalCalls = callLogs.length;
-        final successfulCalls = callLogs.where((log) => log.isSuccessful).length;
+        final successfulCalls = callLogs.where((log) => log.result == 'SUCCESS').length;
         final failedCalls = totalCalls - successfulCalls;
         final successRate = totalCalls > 0 ? (successfulCalls / totalCalls * 100) : 0.0;
         
         final totalDuration = callLogs
-            .where((log) => log.duration > 0)
-            .fold<int>(0, (sum, log) => sum + log.duration);
+            .where((log) => log.callEnd != null)
+            .fold<int>(0, (sum, log) =>
+                sum + (log.callEnd!.difference(log.callStart).inSeconds));
         final averageDuration = totalCalls > 0 ? totalDuration / totalCalls : 0.0;
 
         return ApiResponse.success({

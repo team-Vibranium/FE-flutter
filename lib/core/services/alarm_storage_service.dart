@@ -39,7 +39,7 @@ class AlarmStorageService {
     try {
       final List<dynamic> alarmsList = jsonDecode(alarmsJson);
       final alarms = alarmsList
-          .map((json) => Alarm.fromJson(json as Map<String, dynamic>))
+          .map((json) => Alarm.fromJson(json))
           .toList();
       
       print('📱 로컬에서 ${alarms.length}개의 알람을 불러왔습니다.');

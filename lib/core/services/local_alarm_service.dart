@@ -58,11 +58,12 @@ class LocalAlarmService {
     int snoozeInterval = 5,
     String? label,
     bool isEnabled = true,
+    String? type,
   }) async {
     try {
       final now = DateTime.now();
       final alarm = LocalAlarm(
-        id: _uuid.v4(),
+        id: DateTime.now().millisecondsSinceEpoch % 1000000,
         title: title,
         hour: hour,
         minute: minute,
@@ -75,6 +76,7 @@ class LocalAlarmService {
         createdAt: now,
         updatedAt: now,
         label: label,
+        type: type,
       );
       
       // 저장소에 저장
@@ -123,7 +125,7 @@ class LocalAlarmService {
   }
   
   /// 알람 삭제
-  Future<bool> deleteAlarm(String alarmId) async {
+  Future<bool> deleteAlarm(int alarmId) async {
     try {
       // 알림 취소
       await _notificationService.cancelAlarm(alarmId);
@@ -141,7 +143,7 @@ class LocalAlarmService {
   }
   
   /// 알람 활성화/비활성화
-  Future<bool> toggleAlarm(String alarmId, bool isEnabled) async {
+  Future<bool> toggleAlarm(int alarmId, bool isEnabled) async {
     try {
       // 저장소 업데이트
       final toggleResult = await _storageService.toggleAlarm(alarmId, isEnabled);
@@ -176,7 +178,7 @@ class LocalAlarmService {
   }
   
   /// ID로 알람 조회
-  Future<LocalAlarm?> getAlarmById(String id) async {
+  Future<LocalAlarm?> getAlarmById(int id) async {
     return await _storageService.getAlarmById(id);
   }
   
@@ -186,7 +188,7 @@ class LocalAlarmService {
   }
   
   /// 스누즈 기능
-  Future<bool> snoozeAlarm(String alarmId, {int? customMinutes}) async {
+  Future<bool> snoozeAlarm(int alarmId, {int? customMinutes}) async {
     try {
       final alarm = await _storageService.getAlarmById(alarmId);
       if (alarm == null) return false;

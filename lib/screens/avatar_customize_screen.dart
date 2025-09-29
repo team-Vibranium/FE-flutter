@@ -172,7 +172,7 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
         gradient: LinearGradient(
           colors: [
             Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.primary.withOpacity(0.8),
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -180,7 +180,7 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -199,10 +199,10 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
           const SizedBox(height: 16),
           CircleAvatar(
             radius: 60,
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: CircleAvatar(
               radius: 55,
-              backgroundColor: Colors.white.withOpacity(0.9),
+              backgroundColor: Colors.white.withValues(alpha: 0.9),
               child: Icon(
                 currentAvatar['icon'],
                 size: 60,
@@ -253,7 +253,7 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
               CircleAvatar(
                 radius: 40,
                 backgroundColor: isSelected
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
                     : Colors.grey[100],
                 child: CircleAvatar(
                   radius: 35,

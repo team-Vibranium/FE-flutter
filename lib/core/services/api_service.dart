@@ -3,7 +3,10 @@ import '../environment/environment.dart';
 import 'base_api_service.dart';
 import 'auth_api_service.dart';
 import 'user_api_service.dart';
+import 'alarm_api_service.dart';
 import 'call_log_api_service.dart';
+import 'call_management_api_service.dart';
+import 'realtime_api_service.dart';
 import 'points_api_service.dart';
 import 'mission_api_service.dart';
 import 'mission_results_api_service.dart';
@@ -22,7 +25,10 @@ class ApiService {
   // 각 도메인별 API 서비스
   late final AuthApiService auth;
   late final UserApiService user;
+  late final AlarmApiService alarm;
   late final CallLogApiService callLog;
+  late final CallManagementApiService callManagement;
+  late final RealtimeApiService realtime;
   late final PointsApiService points;
   late final MissionApiService mission;
   late final MissionResultsApiService missionResults;
@@ -46,10 +52,19 @@ class ApiService {
     
     user = UserApiService();
     print('✅ UserApiService 초기화 완료');
-    
+
+    alarm = AlarmApiService();
+    print('✅ AlarmApiService 초기화 완료');
+
     callLog = CallLogApiService();
     print('✅ CallLogApiService 초기화 완료');
-    
+
+    callManagement = CallManagementApiService();
+    print('✅ CallManagementApiService 초기화 완료');
+
+    realtime = RealtimeApiService();
+    print('✅ RealtimeApiService 초기화 완료');
+
     points = PointsApiService();
     print('✅ PointsApiService 초기화 완료');
     
@@ -129,7 +144,7 @@ class ApiService {
       final results = await Future.wait([
         statistics.getWeeklyStatistics(),
         statistics.getWeeklyComparison(),
-        points.getPointHistoryByDateRange(
+        points.getPointTransactionByDateRange(
           DateTime.now().subtract(const Duration(days: 7)),
           DateTime.now(),
         ),
@@ -138,7 +153,7 @@ class ApiService {
       return {
         'weeklyStats': results[0].data,
         'comparison': results[1].data,
-        'pointHistory': results[2].data,
+        'pointTransaction': results[2].data,
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
@@ -153,7 +168,7 @@ class ApiService {
         statistics.getMonthlyStatistics(),
         statistics.getMonthlyComparison(),
         statistics.getThisMonthCalendar(),
-        points.getPointHistoryByDateRange(
+        points.getPointTransactionByDateRange(
           DateTime.now().subtract(const Duration(days: 30)),
           DateTime.now(),
         ),
@@ -182,17 +197,12 @@ class ApiService {
     Map<String, dynamic>? missionResults,
   }) async {
     try {
-      final duration = endTime.difference(startTime).inSeconds;
-
-      // 1. 통화 기록 저장
+      // 1. 통화 기록 저장 (Swagger 스키마 적용)
       final callLogResult = await callLog.createCallLog(
-        alarmTitle: alarmTitle,
-        startTime: startTime,
-        endTime: endTime,
-        duration: duration,
-        isSuccessful: isSuccessful,
-        transcript: transcript,
-        metadata: {'alarmId': alarmId},
+        callStart: startTime,
+        callEnd: endTime,
+        result: isSuccessful ? 'SUCCESS' : 'FAIL_NO_TALK',
+        snoozeCount: 0,
       );
 
       // 2. 성공 시 포인트 획득
@@ -227,7 +237,7 @@ class ApiService {
               missionId: missionResult.data!['id'].toString(),
               missionType: MissionType.values.firstWhere(
                 (e) => e.name == missionType,
-                orElse: () => MissionType.math,
+                orElse: () => MissionType.MATH,
               ),
               score: result['score'] ?? 0,
             );
@@ -265,7 +275,7 @@ class ApiService {
       // 닉네임 변경
       if (nickname != null) {
         final nicknameResult = await user.changeNickname(
-          NicknameChangeRequest(nickname: nickname),
+          NicknameChangeRequest(newNickname: nickname),
         );
         results['nickname'] = nicknameResult.data;
       }
@@ -276,6 +286,7 @@ class ApiService {
           PasswordChangeRequest(
             currentPassword: currentPassword,
             newPassword: newPassword,
+            confirmPassword: newPassword, // 일반적으로 같은 값
           ),
         );
         results['passwordChanged'] = passwordResult.success;
