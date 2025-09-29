@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sound_selection_screen.dart';
 import '../core/services/morning_call_alarm_service.dart';
 import '../core/services/local_alarm_service.dart';
+import '../core/providers/auth_provider.dart';
 
-class AlarmAddScreen extends StatefulWidget {
+class AlarmAddScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? alarmData;
   final Function(Map<String, dynamic>)? onAlarmSaved;
   
   const AlarmAddScreen({super.key, this.alarmData, this.onAlarmSaved});
 
   @override
-  State<AlarmAddScreen> createState() => _AlarmAddScreenState();
+  ConsumerState<AlarmAddScreen> createState() => _AlarmAddScreenState();
 }
 
-class _AlarmAddScreenState extends State<AlarmAddScreen> {
+class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 7, minute: 0);
   String _selectedAlarmType = '일반알람';
   String _selectedMission = '퍼즐';
@@ -856,39 +858,73 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
 
   /// GPT 모닝콜 알람 저장
   Future<void> _saveGPTMorningCallAlarm() async {
-    final service = MorningCallAlarmService();
+    print('🌅 GPT 모닝콜 알람 저장 시작...');
+    print('📝 알람 제목: ${_alarmTitleController.text}');
+    print('⏰ 알람 시간: ${_selectedTime.hour}:${_selectedTime.minute}');
+    print('📅 선택된 요일: $_selectedDays');
+    print('🎯 알람 타입: $_selectedAlarmType');
     
-    // 서비스가 초기화되지 않은 경우 초기화 시도
-    if (!service.isInitialized) {
-      await service.initialize(
-        gptApiKey: '', // API 키 없이도 기본 알람 기능은 동작
-        userName: '사용자',
-      );
-    }
-
-    // 선택된 요일들을 숫자 리스트로 변환 (1=월요일, 7=일요일)
-    final selectedDayNumbers = <int>[];
-    for (int i = 0; i < _selectedDays.length; i++) {
-      final dayName = _days[i];
-      if (_selectedDays.contains(dayName)) {
-        selectedDayNumbers.add(i + 1);
+    try {
+      // 현재 사용자 정보 가져오기
+      final authState = ref.read(authStateProvider);
+      final userName = authState.user?.nickname ?? '사용자';
+      print('👤 현재 사용자 닉네임: $userName');
+      
+      final service = MorningCallAlarmService();
+      print('🔧 MorningCallAlarmService 인스턴스 생성 완료');
+      
+      // 사용자 이름 업데이트
+      service.updateUserName(userName);
+      
+      // 서비스가 초기화되지 않은 경우 초기화 시도
+      if (!service.isInitialized) {
+        print('⚠️ 서비스가 초기화되지 않음. 초기화 시도 중...');
+        await service.initialize(
+          gptApiKey: '', // API 키 없이도 기본 알람 기능은 동작
+          userName: userName,
+        );
+        print('✅ 서비스 초기화 완료');
+      } else {
+        print('✅ 서비스가 이미 초기화됨');
       }
-    }
 
-    final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '모닝콜 알람';
-    
-    await service.scheduleMorningCallAlarm(
-      title: title,
-      scheduledTime: DateTime(
+      // 선택된 요일들을 숫자 리스트로 변환 (1=월요일, 7=일요일)
+      final selectedDayNumbers = <int>[];
+      for (int i = 0; i < _selectedDays.length; i++) {
+        final dayName = _days[i];
+        if (_selectedDays.contains(dayName)) {
+          selectedDayNumbers.add(i + 1);
+        }
+      }
+      print('📅 변환된 요일 숫자: $selectedDayNumbers');
+
+      final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '모닝콜 알람';
+      print('📝 최종 알람 제목: $title');
+      
+      final scheduledTime = DateTime(
         DateTime.now().year,
         DateTime.now().month,
         DateTime.now().day,
         _selectedTime.hour,
         _selectedTime.minute,
-      ),
-      repeatDays: selectedDayNumbers.isNotEmpty ? selectedDayNumbers : null,
-      description: _situationController.text.isNotEmpty ? _situationController.text : '모닝콜 알람',
-    );
+      );
+      print('⏰ 스케줄된 시간: $scheduledTime');
+      
+      print('🚀 scheduleMorningCallAlarm 호출 시작...');
+      await service.scheduleMorningCallAlarm(
+        title: title,
+        scheduledTime: scheduledTime,
+        repeatDays: selectedDayNumbers.isNotEmpty ? selectedDayNumbers : null,
+        description: _situationController.text.isNotEmpty ? _situationController.text : '모닝콜 알람',
+      );
+      print('✅ scheduleMorningCallAlarm 호출 완료');
+      
+    } catch (e, stackTrace) {
+      print('❌ GPT 모닝콜 알람 저장 중 오류 발생:');
+      print('   오류 메시지: $e');
+      print('   스택 트레이스: $stackTrace');
+      rethrow; // 에러를 다시 던져서 상위에서 처리하도록 함
+    }
   }
 
   /// 일반 로컬 알람 저장

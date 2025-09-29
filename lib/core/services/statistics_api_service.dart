@@ -178,7 +178,7 @@ class StatisticsApiService {
     
     int streak = 0;
     for (final stat in dailyStats) {
-      if (stat.alarmCount > 0 && stat.successfulWakeups > 0) {
+          if (stat.alarmCount > 0 && stat.successCount > 0) {
         streak++;
       } else if (stat.alarmCount > 0) {
         // 알람이 있었지만 성공하지 못한 경우 연속 중단
@@ -201,7 +201,7 @@ class StatisticsApiService {
     int bestStreak = 0;
 
     for (final stat in dailyStats) {
-      if (stat.alarmCount > 0 && stat.successfulWakeups > 0) {
+          if (stat.alarmCount > 0 && stat.successCount > 0) {
         currentStreak++;
         if (currentStreak > bestStreak) {
           bestStreak = currentStreak;
@@ -227,13 +227,27 @@ class StatisticsApiService {
       }
 
       final comparison = {
-        'thisWeek': thisWeek.data!.summary,
-        'lastWeek': lastWeek.data!.summary,
+        'thisWeek': {
+          'totalAlarms': thisWeek.data!.totalAlarms,
+          'successAlarms': thisWeek.data!.successAlarms,
+          'failedAlarms': thisWeek.data!.failedAlarms,
+          'successRate': thisWeek.data!.successRate,
+          'totalPoints': thisWeek.data!.totalPoints,
+          'averageWakeTime': thisWeek.data!.averageWakeTime,
+        },
+        'lastWeek': {
+          'totalAlarms': lastWeek.data!.totalAlarms,
+          'successAlarms': lastWeek.data!.successAlarms,
+          'failedAlarms': lastWeek.data!.failedAlarms,
+          'successRate': lastWeek.data!.successRate,
+          'totalPoints': lastWeek.data!.totalPoints,
+          'averageWakeTime': lastWeek.data!.averageWakeTime,
+        },
         'changes': {
-          'successRate': thisWeek.data!.summary.successRate - lastWeek.data!.summary.successRate,
-          'totalAlarms': thisWeek.data!.summary.totalAlarms - lastWeek.data!.summary.totalAlarms,
-          'totalPoints': thisWeek.data!.summary.totalPoints - lastWeek.data!.summary.totalPoints,
-          'averageCallTime': thisWeek.data!.summary.averageCallTime - lastWeek.data!.summary.averageCallTime,
+          'successRate': thisWeek.data!.successRate - lastWeek.data!.successRate,
+          'totalAlarms': thisWeek.data!.totalAlarms - lastWeek.data!.totalAlarms,
+          'totalPoints': thisWeek.data!.totalPoints - lastWeek.data!.totalPoints,
+          'averageWakeTime': thisWeek.data!.averageWakeTime,
         }
       };
 
@@ -256,13 +270,27 @@ class StatisticsApiService {
       }
 
       final comparison = {
-        'thisMonth': thisMonth.data!.summary,
-        'lastMonth': lastMonth.data!.summary,
+        'thisMonth': {
+          'totalAlarms': thisMonth.data!.totalAlarms,
+          'successAlarms': thisMonth.data!.successAlarms,
+          'failedAlarms': thisMonth.data!.failedAlarms,
+          'successRate': thisMonth.data!.successRate,
+          'totalPoints': thisMonth.data!.totalPoints,
+          'averageWakeTime': thisMonth.data!.averageWakeTime,
+        },
+        'lastMonth': {
+          'totalAlarms': lastMonth.data!.totalAlarms,
+          'successAlarms': lastMonth.data!.successAlarms,
+          'failedAlarms': lastMonth.data!.failedAlarms,
+          'successRate': lastMonth.data!.successRate,
+          'totalPoints': lastMonth.data!.totalPoints,
+          'averageWakeTime': lastMonth.data!.averageWakeTime,
+        },
         'changes': {
-          'successRate': thisMonth.data!.summary.successRate - lastMonth.data!.summary.successRate,
-          'totalAlarms': thisMonth.data!.summary.totalAlarms - lastMonth.data!.summary.totalAlarms,
-          'totalPoints': thisMonth.data!.summary.totalPoints - lastMonth.data!.summary.totalPoints,
-          'averageCallTime': thisMonth.data!.summary.averageCallTime - lastMonth.data!.summary.averageCallTime,
+          'successRate': thisMonth.data!.successRate - lastMonth.data!.successRate,
+          'totalAlarms': thisMonth.data!.totalAlarms - lastMonth.data!.totalAlarms,
+          'totalPoints': thisMonth.data!.totalPoints - lastMonth.data!.totalPoints,
+          'averageWakeTime': thisMonth.data!.averageWakeTime,
         }
       };
 
@@ -448,9 +476,9 @@ class StatisticsApiService {
       if (targetSuccessRate != null) {
         achievements['successRate'] = {
           'target': targetSuccessRate,
-          'current': weeklyData.summary.successRate,
-          'achieved': weeklyData.summary.successRate >= targetSuccessRate,
-          'progress': (weeklyData.summary.successRate / targetSuccessRate * 100).clamp(0, 100),
+              'current': weeklyData.successRate,
+              'achieved': weeklyData.successRate >= targetSuccessRate,
+              'progress': (weeklyData.successRate / targetSuccessRate * 100).clamp(0, 100),
         };
       }
 
@@ -458,9 +486,9 @@ class StatisticsApiService {
       if (targetAlarmsPerWeek != null) {
         achievements['weeklyAlarms'] = {
           'target': targetAlarmsPerWeek,
-          'current': weeklyData.summary.totalAlarms,
-          'achieved': weeklyData.summary.totalAlarms >= targetAlarmsPerWeek,
-          'progress': (weeklyData.summary.totalAlarms / targetAlarmsPerWeek * 100).clamp(0, 100),
+              'current': weeklyData.totalAlarms,
+              'achieved': weeklyData.totalAlarms >= targetAlarmsPerWeek,
+              'progress': (weeklyData.totalAlarms / targetAlarmsPerWeek * 100).clamp(0, 100),
         };
       }
 
@@ -468,9 +496,9 @@ class StatisticsApiService {
       if (targetPointsPerMonth != null) {
         achievements['monthlyPoints'] = {
           'target': targetPointsPerMonth,
-          'current': monthlyData.summary.totalPoints,
-          'achieved': monthlyData.summary.totalPoints >= targetPointsPerMonth,
-          'progress': (monthlyData.summary.totalPoints / targetPointsPerMonth * 100).clamp(0, 100),
+              'current': monthlyData.totalPoints,
+              'achieved': monthlyData.totalPoints >= targetPointsPerMonth,
+              'progress': (monthlyData.totalPoints / targetPointsPerMonth * 100).clamp(0, 100),
         };
       }
 
@@ -500,7 +528,7 @@ class StatisticsApiService {
         'successRate': overview.data!.successRate,
         'consecutiveDays': 0, // StatisticsOverview에는 이 속성이 없으므로 0으로 설정
         'averageWakeTime': '07:30', // StatisticsOverview에는 이 속성이 없으므로 기본값
-        'weeklyProgress': weekly.success ? (weekly.data!.summary.successRate) : 0.0,
+            'weeklyProgress': weekly.success ? (weekly.data!.successRate) : 0.0,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
 

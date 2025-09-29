@@ -48,7 +48,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         // 병렬로 실제 API 데이터 로드
         final results = await Future.wait([
           apiService.points.getPointBalance(),
-          apiService.statistics.getStatisticsSummary(),
+          apiService.statistics.getOverview(), // API 스펙에 맞게 수정
           apiService.statistics.getMonthlyStatistics(DateTime.now()),
           apiService.statistics.getWeeklyStatistics(DateTime.now()),
           apiService.points.getPointHistory(limit: 10),
@@ -65,20 +65,40 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             };
             
             // 통계 개요
-            _statisticsOverview = results[1].success ? results[1].data as Map<String, dynamic>? : {
-              'totalAlarms': 0,
-              'successRate': 0.0,
-              'consecutiveDays': 0,
-              'averageWakeTime': '07:00',
-            };
+            if (results[1].success && results[1].data != null) {
+              final overview = results[1].data as StatisticsOverview;
+              _statisticsOverview = {
+                'totalAlarms': overview.totalAlarms,
+                'successAlarms': overview.successAlarms,
+                'missedAlarms': overview.missedAlarms,
+                'successRate': overview.successRate,
+                'consecutiveDays': overview.consecutiveDays,
+                'averageWakeTime': overview.averageWakeTime,
+                'last30DaysSuccessRate': overview.last30DaysSuccessRate,
+                'monthlySuccessRate': overview.monthlySuccessRate,
+                'monthlyPoints': overview.monthlyPoints,
+              };
+            } else {
+              _statisticsOverview = {
+                'totalAlarms': 0,
+                'successAlarms': 0,
+                'missedAlarms': 0,
+                'successRate': 0.0,
+                'consecutiveDays': 0,
+                'averageWakeTime': '00:00',
+                'last30DaysSuccessRate': 0.0,
+                'monthlySuccessRate': 0.0,
+                'monthlyPoints': 0,
+              };
+            }
             
             // 월간 통계
             if (results[2].success && results[2].data != null) {
-              final monthlyData = results[2].data! as Map<String, dynamic>;
+              final monthlyData = results[2].data as PeriodStatistics;
               _monthlyStats = {
-                'successRate': (((monthlyData['summary'] as Map<String, dynamic>)['successRate'] as double) * 100).round(),
+                'successRate': (monthlyData.successRate * 100).round(),
                 'consecutiveDays': null, // API에서 제공되지 않음
-                'totalPointsEarned': (monthlyData['summary'] as Map<String, dynamic>)['totalPoints'],
+                'totalPointsEarned': monthlyData.totalPoints,
               };
             } else {
               _monthlyStats = null; // 데이터 없음
@@ -86,10 +106,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             
             // 주간 통계
             if (results[3].success && results[3].data != null) {
-              final weeklyData = results[3].data! as Map<String, dynamic>;
+              final weeklyData = results[3].data as PeriodStatistics;
               _weeklyStats = {
-                'totalPointsEarned': (weeklyData['summary'] as Map<String, dynamic>)['totalPoints'],
-                'successRate': (((weeklyData['summary'] as Map<String, dynamic>)['successRate'] as double) * 100).round(),
+                'totalPointsEarned': weeklyData.totalPoints,
+                'successRate': (weeklyData.successRate * 100).round(),
                 'consecutiveDays': null, // API에서 제공되지 않음
               };
             } else {
@@ -764,6 +784,53 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   }
 
   Widget _buildCalendarTab() {
+    return FutureBuilder<CalendarStatistics?>(
+      future: _loadCalendarData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('캘린더 데이터 로드 실패: ${snapshot.error}'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {});
+                  },
+                  child: const Text('다시 시도'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        final calendarData = snapshot.data;
+        if (calendarData == null) {
+          // 데이터가 없어도 기본 캘린더 표시
+          final now = DateTime.now();
+          final emptyCalendarData = CalendarStatistics(
+            year: now.year,
+            month: now.month,
+            days: [], // 빈 데이터
+          );
+          return _buildCalendarContent(emptyCalendarData);
+        }
+        
+        return _buildCalendarContent(calendarData);
+      },
+    );
+  }
+
+  Widget _buildCalendarContent(CalendarStatistics calendarData) {
+    // 월간 통계 데이터 가져오기
+    final monthlyStats = _monthlyStats;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -782,7 +849,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                     icon: const Icon(Icons.chevron_left),
                   ),
                   Text(
-                    '2024년 1월',
+                    '${calendarData.year}년 ${calendarData.month}월',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -816,14 +883,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                   const SizedBox(height: 16),
                   _buildCalendarLegend(),
                   const SizedBox(height: 16),
-                  _buildCalendarGrid(),
+                  _buildCalendarGrid(calendarData),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
           // 선택된 날짜 상세 정보
-          _buildSelectedDateInfo(),
+          _buildSelectedDateInfo(monthlyStats),
         ],
       ),
     );
@@ -857,9 +924,34 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildCalendarGrid() {
+  Future<CalendarStatistics?> _loadCalendarData() async {
+    try {
+      final apiService = ApiService();
+      final now = DateTime.now();
+      final response = await apiService.statistics.getCalendarStatistics(
+        year: now.year,
+        month: now.month,
+      );
+      
+      if (response.success && response.data != null) {
+        return response.data as CalendarStatistics;
+      }
+      return null;
+    } catch (e) {
+      print('캘린더 데이터 로드 오류: $e');
+      return null;
+    }
+  }
+
+  Widget _buildCalendarGrid(CalendarStatistics calendarData) {
     // 요일 헤더
     const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    
+    // 해당 월의 첫 번째 날과 마지막 날 계산
+    final firstDay = DateTime(calendarData.year, calendarData.month, 1);
+    final lastDay = DateTime(calendarData.year, calendarData.month + 1, 0);
+    final firstWeekday = firstDay.weekday % 7; // 일요일이 0이 되도록 조정
+    final daysInMonth = lastDay.day;
     
     return Column(
       children: [
@@ -889,31 +981,40 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
           ),
-          itemCount: 31, // 1월 31일
+          itemCount: firstWeekday + daysInMonth,
           itemBuilder: (context, index) {
-            final day = index + 1;
-            // 더미 데이터로 성공률 기반 상태 생성
-            final successRate = (day * 3) % 100;
+            if (index < firstWeekday) {
+              // 빈 칸
+              return Container();
+            }
+            
+            final day = index - firstWeekday + 1;
+            final dayData = calendarData.days.firstWhere(
+              (d) => d.day == day,
+              orElse: () => CalendarDay(
+                day: day,
+                alarmCount: 0,
+                successCount: 0,
+                failCount: 0,
+                status: 'none',
+              ),
+            );
             
             Color color;
-            String status;
-            if (successRate >= 80) {
+            String status = dayData.status;
+            if (status == 'success') {
               color = Colors.green;
-              status = 'success';
-            } else if (successRate >= 50) {
-              color = Colors.orange;
-              status = 'partial';
-            } else if (successRate > 0) {
+            } else if (status == 'failure') {
               color = Colors.red;
-              status = 'failure';
+            } else if (status == 'partial') {
+              color = Colors.orange;
             } else {
-              color = Colors.grey;
-              status = 'none';
+              color = Colors.grey[300]!;
             }
 
             return GestureDetector(
               onTap: () {
-                _showDateDetail(day, status, successRate);
+                _showDateDetail(day, status, dayData.alarmCount, dayData.successCount, dayData.failCount);
               },
               child: Container(
                 decoration: BoxDecoration(
@@ -939,7 +1040,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildSelectedDateInfo() {
+  Widget _buildSelectedDateInfo(Map<String, dynamic>? monthlyStats) {
+    // 월간 통계 데이터에서 값 추출
+    final totalAlarms = monthlyStats?['totalAlarms'] ?? 0;
+    final successAlarms = monthlyStats?['successAlarms'] ?? 0;
+    final failedAlarms = monthlyStats?['failedAlarms'] ?? 0;
+    final successRate = monthlyStats?['successRate'] ?? 0;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -965,11 +1072,29 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMonthSummaryItem('총 알람', '62개', Icons.alarm),
-                _buildMonthSummaryItem('성공', '54개', Icons.check_circle, Colors.green),
-                _buildMonthSummaryItem('실패', '8개', Icons.cancel, Colors.red),
+                _buildMonthSummaryItem('총 알람', '${totalAlarms}개', Icons.alarm),
+                _buildMonthSummaryItem('성공', '${successAlarms}개', Icons.check_circle, Colors.green),
+                _buildMonthSummaryItem('실패', '${failedAlarms}개', Icons.cancel, Colors.red),
               ],
             ),
+            if (totalAlarms > 0) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.trending_up, color: Colors.blue[600], size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '성공률: ${(successRate * 100).round()}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1004,16 +1129,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  void _showDateDetail(int day, String status, int successRate) {
-    // 더미 데이터
-    final totalAlarms = (day % 5) + 1;
-    final successAlarms = (successRate * totalAlarms / 100).round();
-    final failureAlarms = totalAlarms - successAlarms;
+  void _showDateDetail(int day, String status, int alarmCount, int successCount, int failCount) {
+    final totalAlarms = alarmCount;
+    final successAlarms = successCount;
+    final failureAlarms = failCount;
+    final successRate = totalAlarms > 0 ? (successAlarms / totalAlarms * 100).round() : 0;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('1월 ${day}일 상세'),
+        title: Text('${DateTime.now().month}월 ${day}일 상세'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1023,7 +1148,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             _buildDetailRow('실패', '$failureAlarms개', Colors.red),
             const SizedBox(height: 12),
             LinearProgressIndicator(
-              value: successRate / 100,
+              value: totalAlarms > 0 ? successRate / 100 : 0,
               backgroundColor: Colors.grey[300],
               valueColor: AlwaysStoppedAnimation<Color>(
                 successRate >= 80 ? Colors.green : 
