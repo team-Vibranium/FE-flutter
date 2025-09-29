@@ -271,4 +271,242 @@ class StatisticsApiService {
       return ApiResponse.error('월간 비교 계산 오류: $e');
     }
   }
+
+  /// 상세 기간별 통계 조회 (API 명세 기반)
+  /// GET /api/statistics/period?startDate={startDate}&endDate={endDate}
+  Future<ApiResponse<Map<String, dynamic>>> getDetailedPeriodStatistics({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final queryParams = {
+        'startDate': startDate.toIso8601String().split('T')[0], // YYYY-MM-DD 형식
+        'endDate': endDate.toIso8601String().split('T')[0],
+      };
+
+      return await _baseApi.get<Map<String, dynamic>>(
+        '/api/statistics/period',
+        queryParameters: queryParams,
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// 캘린더 통계 조회 (API 명세 기반)
+  /// GET /api/statistics/calendar?year={year}&month={month}
+  Future<ApiResponse<Map<String, dynamic>>> getDetailedCalendarStatistics({
+    required int year,
+    required int month,
+  }) async {
+    try {
+      final queryParams = {
+        'year': year.toString(),
+        'month': month.toString(),
+      };
+
+      return await _baseApi.get<Map<String, dynamic>>(
+        '/api/statistics/calendar',
+        queryParameters: queryParams,
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// 통계 대시보드 데이터 조회 (종합)
+  Future<ApiResponse<Map<String, dynamic>>> getDashboardStatistics() async {
+    try {
+      // 여러 통계 데이터를 병렬로 조회
+      final results = await Future.wait([
+        getOverview(),
+        getWeeklyStatistics(),
+        getMonthlyStatistics(),
+        getThisMonthCalendar(),
+        getRecentDaysStatistics(7),
+        getRecentDaysStatistics(30),
+      ]);
+
+      final overview = results[0];
+      final weekly = results[1];
+      final monthly = results[2];
+      final calendar = results[3];
+      final last7Days = results[4];
+      final last30Days = results[5];
+
+      if (!overview.success) {
+        return ApiResponse.error('대시보드 통계 조회 실패: 전체 개요 데이터 오류');
+      }
+
+      return ApiResponse.success({
+        'overview': overview.data,
+        'weekly': weekly.success ? weekly.data : null,
+        'monthly': monthly.success ? monthly.data : null,
+        'calendar': calendar.success ? calendar.data : null,
+        'last7Days': last7Days.success ? last7Days.data : null,
+        'last30Days': last30Days.success ? last30Days.data : null,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      return ApiResponse.error('대시보드 통계 조회 오류: $e');
+    }
+  }
+
+  /// 성과 트렌드 분석
+  Future<ApiResponse<Map<String, dynamic>>> getPerformanceTrend({
+    int days = 30,
+  }) async {
+    try {
+      final endDate = DateTime.now();
+      final startDate = endDate.subtract(Duration(days: days));
+
+      final periodStats = await getDetailedPeriodStatistics(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      if (!periodStats.success || periodStats.data == null) {
+        return ApiResponse.error('성과 트렌드 데이터 조회 실패');
+      }
+
+      final data = periodStats.data!;
+      final dailyStats = data['dailyStats'] as List<dynamic>? ?? [];
+
+      // 트렌드 분석
+      final successRates = <double>[];
+      final alarmCounts = <int>[];
+      final pointsEarned = <int>[];
+
+      for (final dayStat in dailyStats) {
+        final dayData = dayStat as Map<String, dynamic>;
+        final alarmCount = dayData['alarmCount'] as int? ?? 0;
+        final successCount = dayData['successCount'] as int? ?? 0;
+        final points = dayData['points'] as int? ?? 0;
+
+        alarmCounts.add(alarmCount);
+        pointsEarned.add(points);
+        successRates.add(alarmCount > 0 ? (successCount / alarmCount * 100) : 0.0);
+      }
+
+      // 트렌드 계산 (선형 회귀 간소화)
+      final trendAnalysis = {
+        'successRateTrend': _calculateTrend(successRates),
+        'alarmCountTrend': _calculateTrend(alarmCounts.map((e) => e.toDouble()).toList()),
+        'pointsTrend': _calculateTrend(pointsEarned.map((e) => e.toDouble()).toList()),
+        'averageSuccessRate': successRates.isNotEmpty 
+            ? successRates.reduce((a, b) => a + b) / successRates.length 
+            : 0.0,
+        'totalAlarms': alarmCounts.reduce((a, b) => a + b),
+        'totalPoints': pointsEarned.reduce((a, b) => a + b),
+      };
+
+      return ApiResponse.success(trendAnalysis);
+    } catch (e) {
+      return ApiResponse.error('성과 트렌드 분석 오류: $e');
+    }
+  }
+
+  /// 간단한 트렌드 계산 (증가/감소/유지)
+  String _calculateTrend(List<double> values) {
+    if (values.length < 2) return 'insufficient_data';
+
+    final firstHalf = values.sublist(0, values.length ~/ 2);
+    final secondHalf = values.sublist(values.length ~/ 2);
+
+    final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+    final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+
+    final difference = secondAvg - firstAvg;
+    
+    if (difference > 5) return 'increasing';
+    if (difference < -5) return 'decreasing';
+    return 'stable';
+  }
+
+  /// 목표 달성률 계산
+  Future<ApiResponse<Map<String, dynamic>>> getGoalAchievement({
+    int? targetSuccessRate,
+    int? targetAlarmsPerWeek,
+    int? targetPointsPerMonth,
+  }) async {
+    try {
+      final weekly = await getWeeklyStatistics();
+      final monthly = await getMonthlyStatistics();
+
+      if (!weekly.success || !monthly.success) {
+        return ApiResponse.error('목표 달성률 계산을 위한 데이터 조회 실패');
+      }
+
+      final weeklyData = weekly.data!;
+      final monthlyData = monthly.data!;
+
+      final achievements = <String, dynamic>{};
+
+      // 성공률 목표
+      if (targetSuccessRate != null) {
+        achievements['successRate'] = {
+          'target': targetSuccessRate,
+          'current': weeklyData.summary.successRate,
+          'achieved': weeklyData.summary.successRate >= targetSuccessRate,
+          'progress': (weeklyData.summary.successRate / targetSuccessRate * 100).clamp(0, 100),
+        };
+      }
+
+      // 주간 알람 목표
+      if (targetAlarmsPerWeek != null) {
+        achievements['weeklyAlarms'] = {
+          'target': targetAlarmsPerWeek,
+          'current': weeklyData.summary.totalAlarms,
+          'achieved': weeklyData.summary.totalAlarms >= targetAlarmsPerWeek,
+          'progress': (weeklyData.summary.totalAlarms / targetAlarmsPerWeek * 100).clamp(0, 100),
+        };
+      }
+
+      // 월간 포인트 목표
+      if (targetPointsPerMonth != null) {
+        achievements['monthlyPoints'] = {
+          'target': targetPointsPerMonth,
+          'current': monthlyData.summary.totalPoints,
+          'achieved': monthlyData.summary.totalPoints >= targetPointsPerMonth,
+          'progress': (monthlyData.summary.totalPoints / targetPointsPerMonth * 100).clamp(0, 100),
+        };
+      }
+
+      return ApiResponse.success({
+        'achievements': achievements,
+        'overallProgress': achievements.values
+            .map((a) => a['progress'] as double)
+            .reduce((a, b) => a + b) / achievements.length,
+      });
+    } catch (e) {
+      return ApiResponse.error('목표 달성률 계산 오류: $e');
+    }
+  }
+
+  /// 통계 요약 (위젯용)
+  Future<ApiResponse<Map<String, dynamic>>> getStatisticsSummary() async {
+    try {
+      final overview = await getOverview();
+      final weekly = await getWeeklyStatistics();
+      
+      if (!overview.success) {
+        return ApiResponse.error('통계 요약 조회 실패');
+      }
+
+      final summary = {
+        'totalAlarms': overview.data!.totalAlarms,
+        'successRate': overview.data!.successRate,
+        'consecutiveDays': 0, // StatisticsOverview에는 이 속성이 없으므로 0으로 설정
+        'averageWakeTime': '07:30', // StatisticsOverview에는 이 속성이 없으므로 기본값
+        'weeklyProgress': weekly.success ? (weekly.data!.summary.successRate) : 0.0,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+
+      return ApiResponse.success(summary);
+    } catch (e) {
+      return ApiResponse.error('통계 요약 조회 오류: $e');
+    }
+  }
 }

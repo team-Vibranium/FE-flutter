@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'sound_selection_screen.dart';
+import '../core/services/morning_call_alarm_service.dart';
+import '../core/services/local_alarm_service.dart';
 
 class AlarmAddScreen extends StatefulWidget {
   final Map<String, dynamic>? alarmData;
@@ -823,38 +825,101 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
     }
   }
 
-  void _saveAlarm() {
-    // 알람 데이터 생성
-    final alarmData = {
-      'id': widget.alarmData?['id'] ?? DateTime.now().millisecondsSinceEpoch,
-      'time': '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-      'days': List<String>.from(_selectedDays),
-      'type': _selectedAlarmType,
-      'isEnabled': widget.alarmData?['isEnabled'] ?? true,
-      'tag': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '새 알람',
-      'successRate': widget.alarmData?['successRate'] ?? 0,
-      'mission': _selectedMission,
-      'sound': _selectedSound,
-      'voice': _selectedVoice,
-      'concept': _selectedConcept,
-      'volume': _volume,
-      'isVibrationEnabled': _isVibrationEnabled,
-      'snoozeMinutes': _snoozeMinutes,
-      'snoozeCount': _snoozeCount,
-      'situation': _situationController.text,
-      'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
-    };
+  Future<void> _saveAlarm() async {
+    try {
+      if (_selectedAlarmType == '전화알람') {
+        // GPT 모닝콜 알람 생성
+        await _saveGPTMorningCallAlarm();
+      } else {
+        // 일반 알람 생성
+        await _saveLocalAlarm();
+      }
 
-    // 콜백으로 알람 데이터 전달
-    widget.onAlarmSaved?.call(alarmData);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.alarmData != null ? '알람이 수정되었습니다!' : '알람이 저장되었습니다!'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('알람 저장 중 오류가 발생했습니다: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(widget.alarmData != null ? '알람이 수정되었습니다!' : '알람이 저장되었습니다!'),
-        duration: const Duration(seconds: 2),
+  /// GPT 모닝콜 알람 저장
+  Future<void> _saveGPTMorningCallAlarm() async {
+    final service = MorningCallAlarmService();
+    
+    // 서비스가 초기화되지 않은 경우 초기화 시도
+    if (!service.isInitialized) {
+      await service.initialize(
+        gptApiKey: '', // API 키 없이도 기본 알람 기능은 동작
+        userName: '사용자',
+      );
+    }
+
+    // 선택된 요일들을 숫자 리스트로 변환 (1=월요일, 7=일요일)
+    final selectedDayNumbers = <int>[];
+    for (int i = 0; i < _selectedDays.length; i++) {
+      final dayName = _days[i];
+      if (_selectedDays.contains(dayName)) {
+        selectedDayNumbers.add(i + 1);
+      }
+    }
+
+    final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '모닝콜 알람';
+    
+    await service.scheduleMorningCallAlarm(
+      title: title,
+      scheduledTime: DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+        _selectedTime.hour,
+        _selectedTime.minute,
       ),
+      repeatDays: selectedDayNumbers.isNotEmpty ? selectedDayNumbers : null,
+      description: _situationController.text.isNotEmpty ? _situationController.text : '모닝콜 알람',
     );
-    Navigator.pop(context);
+  }
+
+  /// 일반 로컬 알람 저장
+  Future<void> _saveLocalAlarm() async {
+    final service = LocalAlarmService.instance;
+    
+    // 서비스 초기화
+    await service.initialize();
+
+    // 선택된 요일들을 숫자 리스트로 변환
+    final selectedDayNumbers = <int>[];
+    for (int i = 0; i < _selectedDays.length; i++) {
+      final dayName = _days[i];
+      if (_selectedDays.contains(dayName)) {
+        selectedDayNumbers.add(i + 1);
+      }
+    }
+
+    final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
+    
+    await service.createAlarm(
+      title: title,
+      hour: _selectedTime.hour,
+      minute: _selectedTime.minute,
+      repeatDays: selectedDayNumbers,
+      vibrate: _isVibrationEnabled,
+      snoozeEnabled: true,
+      snoozeInterval: _snoozeMinutes,
+      label: title,
+      isEnabled: true,
+    );
   }
 
   @override

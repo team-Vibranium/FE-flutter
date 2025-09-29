@@ -1,54 +1,156 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/services/api_service.dart';
+import '../core/models/api_models.dart';
+import '../core/providers/auth_provider.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  // 더미 데이터
-  final String _nickname = '알람마스터';
-  final String _email = 'alarm@example.com';
-  final String _grade = '골드';
-  final int _totalPoints = 1250;
-  final int _consecutiveDays = 12;
-  final double _successRate = 84.4;
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  // API 데이터 상태
+  bool _isLoading = true;
+  String? _error;
+  
+  // 사용자 정보
+  User? _user;
+  Map<String, dynamic>? _statisticsSummary;
+  Map<String, dynamic>? _pointSummary;
+  List<Map<String, dynamic>> _achievements = [];
 
-  final List<Map<String, dynamic>> _achievements = [
-    {
-      'title': '연속 10일 성공',
-      'description': '10일 연속으로 알람을 성공했습니다',
-      'isUnlocked': true,
-      'icon': Icons.local_fire_department,
-      'color': Colors.orange,
-    },
-    {
-      'title': '포인트 1000 달성',
-      'description': '총 포인트 1000점을 달성했습니다',
-      'isUnlocked': true,
-      'icon': Icons.stars,
-      'color': Colors.blue,
-    },
-    {
-      'title': '한 달 완주',
-      'description': '한 달 동안 알람을 성공했습니다',
-      'isUnlocked': false,
-      'icon': Icons.calendar_month,
-      'color': Colors.purple,
-    },
-    {
-      'title': '퍼즐 마스터',
-      'description': '퍼즐 미션을 50번 성공했습니다',
-      'isUnlocked': false,
-      'icon': Icons.extension,
-      'color': Colors.green,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  /// 프로필 데이터 로드
+  Future<void> _loadProfileData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final authState = ref.read(authStateProvider);
+      if (authState.user == null) {
+        throw Exception('사용자 정보가 없습니다');
+      }
+
+      final apiService = ApiService();
+      
+      // 병렬로 데이터 로드
+      final results = await Future.wait([
+        apiService.statistics.getStatisticsSummary(),
+        apiService.points.getPointBalance(),
+        Future.value(authState.user), // 현재 사용자 정보
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _user = results[2] as User;
+          _statisticsSummary = (results[0] as ApiResponse).success ? (results[0] as ApiResponse).data as Map<String, dynamic>? : null;
+          _pointSummary = (results[1] as ApiResponse).success ? (results[1] as ApiResponse).data as Map<String, dynamic>? : null;
+          
+          // 업적 데이터 생성 (실제 데이터 기반)
+          _achievements = _generateAchievements();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('프로필 데이터 로드 오류: $e');
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// 실제 데이터 기반으로 업적 생성
+  List<Map<String, dynamic>> _generateAchievements() {
+    final totalPoints = _pointSummary?['totalPoints'] ?? 0;
+    final successRate = _statisticsSummary?['successRate'] ?? 0.0;
+    final consecutiveDays = _statisticsSummary?['consecutiveDays'] ?? 0;
+    
+    return [
+      {
+        'title': '연속 10일 성공',
+        'description': '10일 연속으로 알람을 성공했습니다',
+        'isUnlocked': consecutiveDays >= 10,
+        'icon': Icons.local_fire_department,
+        'color': Colors.orange,
+      },
+      {
+        'title': '포인트 1000 달성',
+        'description': '총 포인트 1000점을 달성했습니다',
+        'isUnlocked': totalPoints >= 1000,
+        'icon': Icons.stars,
+        'color': Colors.blue,
+      },
+      {
+        'title': '성공률 마스터',
+        'description': '알람 성공률 90% 이상을 달성했습니다',
+        'isUnlocked': successRate >= 0.9,
+        'icon': Icons.emoji_events,
+        'color': Colors.amber,
+      },
+      {
+        'title': '연속 30일 성공',
+        'description': '30일 연속으로 알람을 성공했습니다',
+        'isUnlocked': consecutiveDays >= 30,
+        'icon': Icons.calendar_month,
+        'color': Colors.purple,
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('프로필'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('프로필'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('오류가 발생했습니다\n$_error'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadProfileData,
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('마이페이지'),
@@ -99,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         radius: 40,
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         child: Text(
-                          _nickname[0],
+                          (_user?.nickname ?? 'U')[0],
                           style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
@@ -136,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Row(
                         children: [
                           Text(
-                            _nickname,
+                            _user?.nickname ?? '사용자',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -153,7 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              _grade,
+                              _pointSummary?['currentGrade'] ?? 'BRONZE',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -165,7 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _email,
+                        _user?.email ?? 'email@example.com',
                         style: TextStyle(
                           fontSize: 14,
                           color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
@@ -219,13 +321,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatItem('총 포인트', _totalPoints.toString(), Icons.stars, Colors.blue),
+                  child: _buildStatItem('총 포인트', '${_pointSummary?['totalPoints'] ?? 0}', Icons.stars, Colors.blue),
                 ),
                 Expanded(
-                  child: _buildStatItem('연속일', '${_consecutiveDays}일', Icons.local_fire_department, Colors.orange),
+                  child: _buildStatItem('연속일', '${_statisticsSummary?['consecutiveDays'] ?? 0}일', Icons.local_fire_department, Colors.orange),
                 ),
                 Expanded(
-                  child: _buildStatItem('성공률', '${_successRate}%', Icons.trending_up, Colors.green),
+                  child: _buildStatItem('성공률', '${((_statisticsSummary?['successRate'] ?? 0.0) * 100).round()}%', Icons.trending_up, Colors.green),
                 ),
               ],
             ),

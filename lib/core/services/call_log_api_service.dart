@@ -179,4 +179,164 @@ class CallLogApiService {
       offset: offset,
     );
   }
+
+  /// 페이지네이션을 지원하는 통화 기록 조회
+  /// GET /api/call-logs (with pagination metadata)
+  Future<ApiResponse<Map<String, dynamic>>> getCallLogsByPage({
+    int limit = 20,
+    int offset = 0,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? result, // SUCCESS, FAIL_NO_TALK, FAIL_TIMEOUT 등
+    bool? isSuccessful,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      };
+      
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
+      if (result != null) queryParams['result'] = result;
+      if (isSuccessful != null) queryParams['isSuccessful'] = isSuccessful.toString();
+
+      return await _baseApi.get<Map<String, dynamic>>(
+        '/api/call-logs',
+        queryParameters: queryParams,
+        fromJson: (json) {
+          final List<dynamic> callLogs = json['callLogs'] ?? json['data'] ?? [];
+          final callLogList = callLogs
+              .map((item) => CallLog.fromJson(item as Map<String, dynamic>))
+              .toList();
+
+          return {
+            'callLogs': callLogList,
+            'totalCount': json['totalCount'] ?? callLogList.length,
+            'hasMore': json['hasMore'] ?? false,
+            'limit': json['limit'] ?? limit,
+            'offset': json['offset'] ?? offset,
+          };
+        },
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// 통화 기록 통계 조회
+  Future<ApiResponse<Map<String, dynamic>>> getCallLogStats({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final queryParams = <String, String>{};
+      
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
+
+      return await _baseApi.get<Map<String, dynamic>>(
+        '/api/call-logs/stats',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+    } catch (e) {
+      // API가 아직 구현되지 않은 경우 더미 데이터 반환
+      final callLogsResponse = await getCallLogs(
+        startDate: startDate,
+        endDate: endDate,
+      );
+      
+      if (callLogsResponse.success && callLogsResponse.data != null) {
+        final callLogs = callLogsResponse.data!;
+        final totalCalls = callLogs.length;
+        final successfulCalls = callLogs.where((log) => log.isSuccessful).length;
+        final failedCalls = totalCalls - successfulCalls;
+        final successRate = totalCalls > 0 ? (successfulCalls / totalCalls * 100) : 0.0;
+        
+        final totalDuration = callLogs
+            .where((log) => log.duration > 0)
+            .fold<int>(0, (sum, log) => sum + log.duration);
+        final averageDuration = totalCalls > 0 ? totalDuration / totalCalls : 0.0;
+
+        return ApiResponse.success({
+          'totalCalls': totalCalls,
+          'successfulCalls': successfulCalls,
+          'failedCalls': failedCalls,
+          'successRate': successRate,
+          'totalDuration': totalDuration,
+          'averageDuration': averageDuration,
+        });
+      }
+      
+      return ApiResponse.error('통화 기록 통계 조회 실패: $e');
+    }
+  }
+
+  /// 월별 통화 기록 통계
+  Future<ApiResponse<Map<String, dynamic>>> getMonthlyCallLogStats({
+    int? year,
+    int? month,
+  }) async {
+    final now = DateTime.now();
+    final targetYear = year ?? now.year;
+    final targetMonth = month ?? now.month;
+    
+    final startDate = DateTime(targetYear, targetMonth, 1);
+    final endDate = DateTime(targetYear, targetMonth + 1, 1).subtract(const Duration(days: 1));
+
+    final statsResponse = await getCallLogStats(
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    if (statsResponse.success && statsResponse.data != null) {
+      final stats = Map<String, dynamic>.from(statsResponse.data!);
+      stats['year'] = targetYear;
+      stats['month'] = targetMonth;
+      return ApiResponse.success(stats);
+    }
+
+    return statsResponse;
+  }
+
+  /// 통화 기록 검색
+  Future<ApiResponse<List<CallLog>>> searchCallLogs({
+    String? query,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool? isSuccessful,
+    int? limit,
+    int? offset,
+  }) async {
+    try {
+      final queryParams = <String, String>{};
+      
+      if (query != null && query.isNotEmpty) queryParams['q'] = query;
+      if (startDate != null) queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      if (endDate != null) queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
+      if (isSuccessful != null) queryParams['isSuccessful'] = isSuccessful.toString();
+      if (limit != null) queryParams['limit'] = limit.toString();
+      if (offset != null) queryParams['offset'] = offset.toString();
+
+      return await _baseApi.get<List<CallLog>>(
+        '/api/call-logs/search',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+        fromJson: (json) {
+          final List<dynamic> callLogsList = json['callLogs'] ?? json['data'] ?? [];
+          return callLogsList
+              .map((item) => CallLog.fromJson(item as Map<String, dynamic>))
+              .toList();
+        },
+      );
+    } catch (e) {
+      // 검색 API가 구현되지 않은 경우 기본 조회로 대체
+      return getCallLogs(
+        startDate: startDate,
+        endDate: endDate,
+        limit: limit,
+        offset: offset,
+      );
+    }
+  }
 }

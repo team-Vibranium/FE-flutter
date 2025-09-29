@@ -1,188 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'call_detail_screen.dart';
 import '../core/widgets/cards/app_card.dart';
 import '../core/widgets/chips/status_chip.dart';
 import '../core/design_system/app_spacing.dart';
 import '../core/design_system/app_colors.dart';
+import '../core/services/api_service.dart';
+import '../core/models/api_models.dart';
 
-class CallHistoryScreen extends StatefulWidget {
+class CallHistoryScreen extends ConsumerStatefulWidget {
   const CallHistoryScreen({super.key});
 
   @override
-  State<CallHistoryScreen> createState() => _CallHistoryScreenState();
+  ConsumerState<CallHistoryScreen> createState() => _CallHistoryScreenState();
 }
 
-class _CallHistoryScreenState extends State<CallHistoryScreen> {
+class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
   final ScrollController _scrollController = ScrollController();
   String _selectedFilter = 'all'; // all, success, failure
-  List<Map<String, dynamic>> _displayedHistory = [];
+  List<CallLog> _displayedHistory = [];
+  List<CallLog> _allCallHistory = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  String? _error;
   int _currentPage = 0;
   final int _itemsPerPage = 10;
+  bool _hasMoreData = true;
 
-  // 더미 데이터 (더 많은 데이터로 확장)
-  final List<Map<String, dynamic>> _allCallHistory = const [
-    {
-      'date': '2025-09-22',
-      'status': '성공',
-      'time': '07:15',
-      'duration': '2분 30초',
-      'summary': '일어날 시간입니다. 사용자가 정상적으로 응답했습니다.',
-    },
-    {
-      'date': '2025-09-21',
-      'status': '실패',
-      'time': '08:00',
-      'duration': '10초',
-      'summary': '10초 무발화로 실패 처리되었습니다.',
-    },
-    {
-      'date': '2025-09-20',
-      'status': '성공',
-      'time': '07:30',
-      'duration': '1분 45초',
-      'summary': '사용자가 빠르게 응답하여 성공했습니다.',
-    },
-    {
-      'date': '2025-09-19',
-      'status': '성공',
-      'time': '06:45',
-      'duration': '3분 15초',
-      'summary': '퍼즐 미션을 완료하며 성공했습니다.',
-    },
-    {
-      'date': '2025-09-18',
-      'status': '실패',
-      'time': '07:20',
-      'duration': '10초',
-      'summary': '응답 없이 실패 처리되었습니다.',
-    },
-    {
-      'date': '2025-09-17',
-      'status': '성공',
-      'time': '07:00',
-      'duration': '2분 10초',
-      'summary': '정확한 시간에 일어나 성공했습니다.',
-    },
-    {
-      'date': '2025-09-16',
-      'status': '성공',
-      'time': '08:15',
-      'duration': '1분 30초',
-      'summary': '스누즈 후 정상적으로 일어났습니다.',
-    },
-    {
-      'date': '2025-09-15',
-      'status': '실패',
-      'time': '07:45',
-      'duration': '10초',
-      'summary': '알람을 무시하고 실패했습니다.',
-    },
-    {
-      'date': '2025-09-14',
-      'status': '성공',
-      'time': '06:30',
-      'duration': '3분 20초',
-      'summary': '일찍 일어나서 성공했습니다.',
-    },
-    {
-      'date': '2025-09-13',
-      'status': '성공',
-      'time': '07:10',
-      'duration': '2분 15초',
-      'summary': '정상적으로 응답하여 성공했습니다.',
-    },
-    {
-      'date': '2025-09-12',
-      'status': '실패',
-      'time': '08:30',
-      'duration': '5초',
-      'summary': '무응답으로 실패했습니다.',
-    },
-    {
-      'date': '2025-09-11',
-      'status': '성공',
-      'time': '07:25',
-      'duration': '1분 50초',
-      'summary': '빠른 응답으로 성공했습니다.',
-    },
-    {
-      'date': '2025-09-10',
-      'status': '성공',
-      'time': '06:45',
-      'duration': '4분 10초',
-      'summary': '퍼즐 미션 완료 후 성공했습니다.',
-    },
-    {
-      'date': '2025-09-09',
-      'status': '실패',
-      'time': '07:55',
-      'duration': '8초',
-      'summary': '짧은 응답으로 실패했습니다.',
-    },
-    {
-      'date': '2025-09-08',
-      'status': '성공',
-      'time': '07:05',
-      'duration': '2분 45초',
-      'summary': '정시에 일어나 성공했습니다.',
-    },
-    {
-      'date': '2025-09-07',
-      'status': '성공',
-      'time': '08:20',
-      'duration': '3분 30초',
-      'summary': '스누즈 사용 후 성공했습니다.',
-    },
-    {
-      'date': '2025-09-06',
-      'status': '실패',
-      'time': '07:40',
-      'duration': '12초',
-      'summary': '부족한 대화로 실패했습니다.',
-    },
-    {
-      'date': '2025-09-05',
-      'status': '성공',
-      'time': '06:50',
-      'duration': '2분 25초',
-      'summary': '명확한 응답으로 성공했습니다.',
-    },
-    {
-      'date': '2025-09-04',
-      'status': '성공',
-      'time': '07:30',
-      'duration': '1분 55초',
-      'summary': '정상적인 통화로 성공했습니다.',
-    },
-    {
-      'date': '2025-09-03',
-      'status': '실패',
-      'time': '08:10',
-      'duration': '6초',
-      'summary': '매우 짧은 응답으로 실패했습니다.',
-    },
-    {
-      'date': '2025-09-02',
-      'status': '성공',
-      'time': '07:15',
-      'duration': '3분 05초',
-      'summary': '충분한 대화로 성공했습니다.',
-    },
-    {
-      'date': '2025-09-01',
-      'status': '성공',
-      'time': '06:55',
-      'duration': '2분 40초',
-      'summary': '활기찬 응답으로 성공했습니다.',
-    },
-  ];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadMoreData();
+    _loadInitialData();
+  }
+  
+  Future<void> _loadInitialData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+        _currentPage = 0;
+        _displayedHistory.clear();
+        _allCallHistory.clear();
+        _hasMoreData = true;
+      });
+      
+      await _loadMoreData();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -198,52 +70,118 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     }
   }
 
-  void _loadMoreData() {
-    if (_isLoading) return;
+  Future<void> _loadMoreData() async {
+    if (_isLoadingMore || !_hasMoreData) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    try {
+      setState(() {
+        _isLoadingMore = true;
+      });
 
-    // 시뮬레이션을 위한 딜레이
-    Future.delayed(const Duration(milliseconds: 500), () {
-      final filteredData = _getFilteredData();
-      final startIndex = _currentPage * _itemsPerPage;
-      final endIndex = (startIndex + _itemsPerPage).clamp(0, filteredData.length);
-      
-      if (startIndex < filteredData.length) {
-        final newItems = filteredData.sublist(startIndex, endIndex);
-        setState(() {
-          _displayedHistory.addAll(newItems);
-          _currentPage++;
-          _isLoading = false;
-        });
+      final apiService = ApiService();
+      final response = await apiService.callLog.getCallLogsByPage(
+        limit: _itemsPerPage,
+        offset: _allCallHistory.length,
+      );
+
+      if (response.success && response.data != null) {
+        // API 응답을 CallLog 리스트로 변환
+        final responseData = response.data as Map<String, dynamic>;
+        final callLogsList = responseData['callLogs'] as List<dynamic>? ?? [];
+        final newCallLogs = callLogsList
+            .map((item) => CallLog.fromJson(item as Map<String, dynamic>))
+            .toList();
+        
+        if (mounted) {
+          setState(() {
+            _allCallHistory.addAll(newCallLogs);
+            _updateDisplayedHistory();
+            _currentPage++;
+            _hasMoreData = newCallLogs.length == _itemsPerPage;
+            _isLoading = false;
+            _isLoadingMore = false;
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _error = response.message ?? '통화 내역을 불러오는데 실패했습니다';
+            _isLoading = false;
+            _isLoadingMore = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
+          _error = e.toString();
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
-    });
+    }
   }
 
-  List<Map<String, dynamic>> _getFilteredData() {
+  void _updateDisplayedHistory() {
+    List<CallLog> filteredData;
     switch (_selectedFilter) {
       case 'success':
-        return _allCallHistory.where((call) => call['status'] == '성공').toList();
+        filteredData = _allCallHistory.where((call) => call.isSuccessful).toList();
+        break;
       case 'failure':
-        return _allCallHistory.where((call) => call['status'] == '실패').toList();
+        filteredData = _allCallHistory.where((call) => !call.isSuccessful).toList();
+        break;
       default:
-        return _allCallHistory;
+        filteredData = _allCallHistory;
     }
+    _displayedHistory = filteredData;
   }
 
   void _applyFilter(String filter) {
     setState(() {
       _selectedFilter = filter;
-      _displayedHistory.clear();
-      _currentPage = 0;
     });
-    _loadMoreData();
+    _updateDisplayedHistory();
+  }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '통화 내역을 불러오는 중 오류가 발생했습니다',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadInitialData,
+              child: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -253,9 +191,19 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
         title: const Text('통화 기록'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadInitialData,
+          ),
+        ],
       ),
-      body: Column(
-        children: [
+      body: _error != null
+          ? _buildErrorWidget()
+          : _isLoading && _displayedHistory.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
           // 최근 통화 요약 카드
           Container(
             margin: const EdgeInsets.all(AppSpacing.md),
@@ -302,7 +250,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _displayedHistory.length + (_isLoading ? 1 : 0),
+              itemCount: _displayedHistory.length + (_isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == _displayedHistory.length) {
                   return _buildLoadingIndicator();
@@ -388,8 +336,8 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
   }
 
   Widget _buildSummaryStats(BuildContext context) {
-    final successCount = _allCallHistory.where((call) => call['status'] == '성공').length;
-    final failureCount = _allCallHistory.where((call) => call['status'] == '실패').length;
+        final successCount = _allCallHistory.where((call) => call.isSuccessful).length;
+        final failureCount = _allCallHistory.where((call) => !call.isSuccessful).length;
     final successRate = _allCallHistory.isNotEmpty 
         ? ((successCount / _allCallHistory.length) * 100).round()
         : 0;
@@ -457,8 +405,8 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     );
   }
 
-  Widget _buildCallHistoryItem(BuildContext context, Map<String, dynamic> call) {
-    final isSuccess = call['status'] == '성공';
+  Widget _buildCallHistoryItem(BuildContext context, CallLog call) {
+    final isSuccess = call.isSuccessful;
     final statusColor = isSuccess ? AppColors.enhancedSuccess : AppColors.enhancedPrimary;
     final statusIcon = isSuccess ? Icons.check_circle : Icons.cancel;
     
@@ -470,7 +418,14 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => CallDetailScreen(
-                callData: call,
+                callData: {
+                  'id': call.id,
+                  'date': call.startTime.toString().substring(0, 10),
+                  'status': call.isSuccessful ? '성공' : '실패',
+                  'time': call.startTime.toString().substring(11, 16),
+                  'duration': '${call.duration}초',
+                  'summary': call.transcript ?? '통화 내용 없음',
+                },
               ),
             ),
           );
@@ -497,14 +452,14 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                   Row(
                     children: [
                       Text(
-                        call['date'],
+                        call.startTime.toString().substring(0, 10),
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       StatusChip(
-                        label: call['status'],
+                        label: call.isSuccessful ? '성공' : '실패',
                         color: statusColor,
                         icon: statusIcon,
                       ),
@@ -512,14 +467,14 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '${call['time']} • ${call['duration']}',
+                    '${call.startTime.toString().substring(11, 16)} • ${call.duration}초',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    call['summary'],
+                    call.transcript ?? '통화 내용 없음',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),

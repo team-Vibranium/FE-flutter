@@ -211,4 +211,123 @@ class PointsApiService {
       offset: offset,
     );
   }
+
+  /// 포인트 잔액 확인
+  Future<ApiResponse<Map<String, dynamic>>> getPointBalance() async {
+    try {
+      final response = await getPointSummary();
+      if (response.success && response.data != null) {
+        final summary = response.data!;
+        return ApiResponse.success({
+          'consumptionPoints': 0, // PointSummary에는 이 속성이 없으므로 0으로 설정
+          'gradePoints': 0, // PointSummary에는 이 속성이 없으므로 0으로 설정
+          'totalPoints': summary.totalPoints,
+          'currentGrade': 'BRONZE', // PointSummary에는 등급 정보가 없으므로 기본값
+        });
+      }
+      return ApiResponse.error('포인트 잔액 조회 실패');
+    } catch (e) {
+      return ApiResponse.error('포인트 잔액 조회 오류: $e');
+    }
+  }
+
+  /// 포인트 사용 가능 여부 확인
+  Future<bool> canSpendPoints(int amount, String pointType) async {
+    try {
+      final balanceResponse = await getPointBalance();
+      if (!balanceResponse.success || balanceResponse.data == null) {
+        return false;
+      }
+
+      final balance = balanceResponse.data!;
+      switch (pointType) {
+        case 'consumption':
+          return (balance['consumptionPoints'] as int) >= amount;
+        case 'grade':
+          return (balance['gradePoints'] as int) >= amount;
+        default:
+          return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 월별 포인트 통계 조회
+  Future<ApiResponse<Map<String, dynamic>>> getMonthlyPointStats({
+    int? year,
+    int? month,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final targetYear = year ?? now.year;
+      final targetMonth = month ?? now.month;
+      
+      final startDate = DateTime(targetYear, targetMonth, 1);
+      final endDate = DateTime(targetYear, targetMonth + 1, 1).subtract(const Duration(days: 1));
+
+      final historyResponse = await getPointHistoryByDateRange(startDate, endDate);
+      
+      if (!historyResponse.success || historyResponse.data == null) {
+        return ApiResponse.error('월별 포인트 통계 조회 실패');
+      }
+
+      final history = historyResponse.data!;
+      int totalEarned = 0;
+      int totalSpent = 0;
+      int transactionCount = 0;
+
+      for (final transaction in history) {
+        if (transaction.amount > 0) {
+          totalEarned += transaction.amount;
+        } else {
+          totalSpent += transaction.amount.abs();
+        }
+        transactionCount++;
+      }
+
+      return ApiResponse.success({
+        'year': targetYear,
+        'month': targetMonth,
+        'totalEarned': totalEarned,
+        'totalSpent': totalSpent,
+        'netGain': totalEarned - totalSpent,
+        'transactionCount': transactionCount,
+        'averageTransaction': transactionCount > 0 ? (totalEarned + totalSpent) / transactionCount : 0,
+      });
+    } catch (e) {
+      return ApiResponse.error('월별 포인트 통계 조회 오류: $e');
+    }
+  }
+
+  /// 포인트 랭킹 조회 (향후 구현을 위한 준비)
+  Future<ApiResponse<List<Map<String, dynamic>>>> getPointRanking({
+    int limit = 10,
+    String period = 'monthly', // daily, weekly, monthly, all
+  }) async {
+    try {
+      final queryParams = {
+        'limit': limit.toString(),
+        'period': period,
+      };
+
+      return await _baseApi.get<List<Map<String, dynamic>>>(
+        '/api/points/ranking',
+        queryParameters: queryParams,
+        fromJson: (json) {
+          final List<dynamic> rankingList = json['ranking'] ?? json['data'] ?? [];
+          return rankingList
+              .map((item) => item as Map<String, dynamic>)
+              .toList();
+        },
+      );
+    } catch (e) {
+      // 아직 구현되지 않은 API이므로 더미 데이터 반환
+      return ApiResponse.success([
+        {'rank': 1, 'nickname': '알람마스터', 'points': 2500, 'isCurrentUser': false},
+        {'rank': 2, 'nickname': '아침형인간', 'points': 2200, 'isCurrentUser': false},
+        {'rank': 3, 'nickname': '일찍자기', 'points': 1800, 'isCurrentUser': true},
+      ]);
+    }
+  }
 }

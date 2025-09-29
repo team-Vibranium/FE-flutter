@@ -1,45 +1,139 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/services/api_service.dart';
+import '../core/models/api_models.dart';
 
-class StatsScreen extends StatefulWidget {
+class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
 
   @override
-  State<StatsScreen> createState() => _StatsScreenState();
+  ConsumerState<StatsScreen> createState() => _StatsScreenState();
 }
 
-class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin {
+class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderStateMixin {
   late TabController _tabController;
   
   // 필터 상태
   String _selectedFilter = 'all'; // all, plus, minus
   String _selectedPeriod = '30days'; // 7days, 30days, 90days
 
-  // 더미 데이터 - 30일 성과 중심
-  final int _totalConsumptionPoints = 850; // 소비 포인트
-  final int _totalGradePoints = 1250; // 등급 포인트
-  final int _last30DaysPoints = 280; // 최근 30일 포인트
-  final int _totalAlarms = 45;
-  final int _successAlarms = 38;
-  final int _missedAlarms = 7;
-  final String _averageWakeTime = '07:15';
-  final int _consecutiveDays = 12;
-  final int _last30DaysSuccessRate = 87; // 최근 30일 성공률
-  final int _monthlySuccessRate = 85; // 이번 달 성공률
-  final int _monthlyPoints = 320; // 이번 달 포인트
-
-  final List<Map<String, dynamic>> _pointHistory = [
-    {'date': '2024-01-15', 'type': '성공', 'points': 10, 'description': '알람 성공 (등급 포인트)', 'category': 'grade'},
-    {'date': '2024-01-14', 'type': '성공', 'points': 15, 'description': '퍼즐 보너스 (등급 포인트)', 'category': 'grade'},
-    {'date': '2024-01-13', 'type': '소비', 'points': -50, 'description': '아바타 구매 (소비 포인트)', 'category': 'consumption'},
-    {'date': '2024-01-12', 'type': '성공', 'points': 10, 'description': '알람 성공 (등급 포인트)', 'category': 'grade'},
-    {'date': '2024-01-11', 'type': '성공', 'points': 20, 'description': '연속 성공 보너스 (등급 포인트)', 'category': 'grade'},
-    {'date': '2024-01-10', 'type': '소비', 'points': -100, 'description': '캐릭터 구매 (소비 포인트)', 'category': 'consumption'},
-  ];
+  // API 데이터 상태
+  bool _isLoading = true;
+  String? _error;
+  
+  // API에서 가져온 데이터 (임시로 Map 사용)
+  Map<String, dynamic>? _pointSummary;
+  Map<String, dynamic>? _statisticsOverview;
+  List<Map<String, dynamic>> _pointHistory = [];
+  Map<String, dynamic>? _monthlyStats;
+  Map<String, dynamic>? _weeklyStats;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadData();
+  }
+  
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+      
+      final apiService = ApiService();
+      
+      try {
+        // 병렬로 실제 API 데이터 로드
+        final results = await Future.wait([
+          apiService.points.getPointBalance(),
+          apiService.statistics.getStatisticsSummary(),
+          apiService.statistics.getMonthlyStatistics(DateTime.now()),
+          apiService.statistics.getWeeklyStatistics(DateTime.now()),
+          apiService.points.getPointHistory(limit: 10),
+        ]);
+
+        if (mounted) {
+          setState(() {
+            // 포인트 요약
+            _pointSummary = results[0].success ? results[0].data as Map<String, dynamic>? : {
+              'consumptionPoints': 0,
+              'gradePoints': 0,
+              'totalPoints': 0,
+              'currentGrade': 'BRONZE',
+            };
+            
+            // 통계 개요
+            _statisticsOverview = results[1].success ? results[1].data as Map<String, dynamic>? : {
+              'totalAlarms': 0,
+              'successRate': 0.0,
+              'consecutiveDays': 0,
+              'averageWakeTime': '07:00',
+            };
+            
+            // 월간 통계
+            if (results[2].success && results[2].data != null) {
+              final monthlyData = results[2].data! as Map<String, dynamic>;
+              _monthlyStats = {
+                'successRate': (((monthlyData['summary'] as Map<String, dynamic>)['successRate'] as double) * 100).round(),
+                'consecutiveDays': null, // API에서 제공되지 않음
+                'totalPointsEarned': (monthlyData['summary'] as Map<String, dynamic>)['totalPoints'],
+              };
+            } else {
+              _monthlyStats = null; // 데이터 없음
+            }
+            
+            // 주간 통계
+            if (results[3].success && results[3].data != null) {
+              final weeklyData = results[3].data! as Map<String, dynamic>;
+              _weeklyStats = {
+                'totalPointsEarned': (weeklyData['summary'] as Map<String, dynamic>)['totalPoints'],
+                'successRate': (((weeklyData['summary'] as Map<String, dynamic>)['successRate'] as double) * 100).round(),
+                'consecutiveDays': null, // API에서 제공되지 않음
+              };
+            } else {
+              _weeklyStats = null; // 데이터 없음
+            }
+            
+            // 포인트 내역
+            if (results[4].success && results[4].data != null) {
+              final historyData = results[4].data! as List<dynamic>;
+              _pointHistory = historyData.map<Map<String, dynamic>>((item) => {
+                'amount': (item as Map<String, dynamic>)['amount'],
+                'type': (item as Map<String, dynamic>)['type'],
+                'description': (item as Map<String, dynamic>)['description'],
+                'createdAt': (item as Map<String, dynamic>)['createdAt'],
+              }).toList();
+            } else {
+              _pointHistory = [];
+            }
+            
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print('통계 데이터 로드 오류: $e');
+        if (mounted) {
+          setState(() {
+            // 오류 발생 시 데이터 없음으로 설정
+            _pointSummary = null;
+            _statisticsOverview = null;
+            _monthlyStats = null;
+            _weeklyStats = null;
+            _pointHistory = [];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -67,14 +161,64 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
         ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPointsTab(),
-          _buildStatsTab(),
-          _buildCalendarTab(),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+          ),
         ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? _buildErrorWidget()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildPointsTab(),
+                    _buildStatsTab(),
+                    _buildCalendarTab(),
+                  ],
+                ),
+    );
+  }
+  
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '데이터를 불러오는 중 오류가 발생했습니다',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadData,
+              child: const Text('다시 시도'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -96,6 +240,9 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
   }
 
   Widget _buildPointsSummary() {
+    final pointSummary = _pointSummary;
+    final weeklyStats = _weeklyStats;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -105,13 +252,23 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
             Row(
               children: [
                 Expanded(
-                  child: _buildPointTypeCard('소비 포인트', _totalConsumptionPoints.toString(), 
-                      Colors.orange, Icons.shopping_cart, '캐릭터 구매용'),
+                  child: _buildPointTypeCard(
+                    '소비 포인트', 
+                    '${_pointSummary?['consumptionPoints'] ?? 0}', 
+                    Colors.orange, 
+                    Icons.shopping_cart, 
+                    '캐릭터 구매용'
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildPointTypeCard('등급 포인트', _totalGradePoints.toString(), 
-                      Colors.purple, Icons.emoji_events, '티어 시스템용'),
+                  child: _buildPointTypeCard(
+                    '등급 포인트', 
+                    '${_pointSummary?['gradePoints'] ?? 0}', 
+                    Colors.purple, 
+                    Icons.emoji_events, 
+                    '티어 시스템용'
+                  ),
                 ),
               ],
             ),
@@ -148,9 +305,9 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildMiniStat('획득 포인트', '+$_last30DaysPoints', Colors.green),
-                      _buildMiniStat('성공률', '$_last30DaysSuccessRate%', Colors.blue),
-                      _buildMiniStat('연속일', '${_consecutiveDays}일', Colors.orange),
+                      _buildMiniStat('획득 포인트', '+${_safeGetValue(_weeklyStats, 'totalPointsEarned')}', Colors.green),
+                      _buildMiniStat('성공률', '${_safeGetValue(_weeklyStats, 'successRate')}%', Colors.blue),
+                      _buildMiniStat('연속일', '${_safeGetValue(_weeklyStats, 'consecutiveDays')}일', Colors.orange),
                     ],
                   ),
                 ],
@@ -309,9 +466,9 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
     List<Map<String, dynamic>> filteredHistory = _pointHistory.where((item) {
       switch (_selectedFilter) {
         case 'plus':
-          return item['points'] > 0;
+          return item['amount'] > 0;
         case 'minus':
-          return item['points'] < 0;
+          return item['amount'] < 0;
         default:
           return true;
       }
@@ -365,8 +522,8 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
   }
 
   Widget _buildPointHistoryItem(Map<String, dynamic> item) {
-    final isPositive = item['points'] > 0;
-    final isConsumption = item['category'] == 'consumption';
+    final isPositive = item['amount'] > 0;
+    final isConsumption = item['type'] == 'consumption';
     final color = isPositive ? Colors.green : Colors.red;
     final bgColor = isConsumption ? Colors.orange[50] : Colors.blue[50];
     
@@ -413,7 +570,7 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
                 Row(
                   children: [
                     Text(
-                      item['date'],
+                      item['createdAt'].toString().substring(0, 10),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -441,7 +598,7 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
             ),
           ),
           Text(
-            '${item['points'] > 0 ? '+' : ''}${item['points']}',
+            '${item['amount'] > 0 ? '+' : ''}${item['amount']}',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -484,13 +641,13 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
             Row(
               children: [
                 Expanded(
-                  child: _buildStatItem('총 알람', _totalAlarms.toString(), Icons.alarm),
+                  child: _buildStatItem('총 알람', '${_statisticsOverview?['totalAlarms'] ?? 0}', Icons.alarm),
                 ),
                 Expanded(
-                  child: _buildStatItem('성공', _successAlarms.toString(), Icons.check_circle, Colors.green),
+                  child: _buildStatItem('성공', '${_statisticsOverview?['successfulAlarms'] ?? 0}', Icons.check_circle, Colors.green),
                 ),
                 Expanded(
-                  child: _buildStatItem('놓친 알람', _missedAlarms.toString(), Icons.cancel, Colors.red),
+                  child: _buildStatItem('놓친 알람', '${(_statisticsOverview?['totalAlarms'] ?? 0) - (_statisticsOverview?['successfulAlarms'] ?? 0)}', Icons.cancel, Colors.red),
                 ),
               ],
             ),
@@ -511,7 +668,7 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
                     style: TextStyle(fontWeight: FontWeight.w500),
                   ),
                   Text(
-                    _averageWakeTime,
+                    _statisticsOverview?['averageWakeTime'] ?? '00:00',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -569,11 +726,11 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
               ),
             ),
             const SizedBox(height: 20),
-            _buildPerformanceItem('성공률', '${_monthlySuccessRate}%', Colors.green),
+            _buildPerformanceItem('성공률', '${_monthlyStats?['successRate'] ?? 0}%', Colors.green),
             const SizedBox(height: 12),
-            _buildPerformanceItem('연속 성공', '${_consecutiveDays}일', Colors.blue),
+            _buildPerformanceItem('연속 성공', '${_monthlyStats?['consecutiveDays'] ?? 0}일', Colors.blue),
             const SizedBox(height: 12),
-            _buildPerformanceItem('이번 달 포인트', '$_monthlyPoints', Colors.orange),
+            _buildPerformanceItem('이번 달 포인트', '${_monthlyStats?['totalPointsEarned'] ?? 0}', Colors.orange),
           ],
         ),
       ),
@@ -907,5 +1064,48 @@ class _StatsScreenState extends State<StatsScreen> with TickerProviderStateMixin
         ],
       ),
     );
+  }
+
+  /// 데이터가 없을 때 표시할 위젯
+  Widget _buildNoDataWidget(String message) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.data_usage_outlined,
+            size: 48,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '서버에서 데이터를 불러올 수 없습니다',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 안전한 데이터 접근 헬퍼
+  String _safeGetValue(Map<String, dynamic>? data, String key, [String defaultValue = '-']) {
+    if (data == null) return defaultValue;
+    final value = data[key];
+    if (value == null) return defaultValue;
+    return value.toString();
   }
 }
