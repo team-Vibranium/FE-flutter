@@ -370,120 +370,140 @@ enum MissionType {
 /// 통계 개요 모델
 class StatisticsOverview {
   final int totalAlarms;
-  final int successfulWakeups;
+  final int successAlarms;
+  final int missedAlarms;
   final double successRate;
-  final int totalCallTime; // 초 단위
-  final int averageCallTime; // 초 단위
-  final int totalPoints;
-  final int completedMissions;
+  final int consecutiveDays;
+  final String averageWakeTime;
+  final double last30DaysSuccessRate;
+  final double monthlySuccessRate;
+  final int monthlyPoints;
 
   const StatisticsOverview({
     required this.totalAlarms,
-    required this.successfulWakeups,
+    required this.successAlarms,
+    required this.missedAlarms,
     required this.successRate,
-    required this.totalCallTime,
-    required this.averageCallTime,
-    required this.totalPoints,
-    required this.completedMissions,
+    required this.consecutiveDays,
+    required this.averageWakeTime,
+    required this.last30DaysSuccessRate,
+    required this.monthlySuccessRate,
+    required this.monthlyPoints,
   });
 
   factory StatisticsOverview.fromJson(Map<String, dynamic> json) {
     return StatisticsOverview(
-      totalAlarms: json['totalAlarms'] as int,
-      successfulWakeups: json['successfulWakeups'] as int,
-      successRate: (json['successRate'] as num).toDouble(),
-      totalCallTime: json['totalCallTime'] as int,
-      averageCallTime: json['averageCallTime'] as int,
-      totalPoints: json['totalPoints'] as int,
-      completedMissions: json['completedMissions'] as int,
+      totalAlarms: json['totalAlarms'] as int? ?? 0,
+      successAlarms: json['successAlarms'] as int? ?? 0,
+      missedAlarms: json['missedAlarms'] as int? ?? 0,
+      successRate: (json['successRate'] as num?)?.toDouble() ?? 0.0,
+      consecutiveDays: json['consecutiveDays'] as int? ?? 0,
+      averageWakeTime: json['averageWakeTime'] as String? ?? '00:00',
+      last30DaysSuccessRate: (json['last30DaysSuccessRate'] as num?)?.toDouble() ?? 0.0,
+      monthlySuccessRate: (json['monthlySuccessRate'] as num?)?.toDouble() ?? 0.0,
+      monthlyPoints: json['monthlyPoints'] as int? ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'totalAlarms': totalAlarms,
-      'successfulWakeups': successfulWakeups,
+      'successAlarms': successAlarms,
+      'missedAlarms': missedAlarms,
       'successRate': successRate,
-      'totalCallTime': totalCallTime,
-      'averageCallTime': averageCallTime,
-      'totalPoints': totalPoints,
-      'completedMissions': completedMissions,
+      'consecutiveDays': consecutiveDays,
+      'averageWakeTime': averageWakeTime,
+      'last30DaysSuccessRate': last30DaysSuccessRate,
+      'monthlySuccessRate': monthlySuccessRate,
+      'monthlyPoints': monthlyPoints,
     };
   }
 }
 
 /// 기간별 통계 모델
 class PeriodStatistics {
-  final DateTime startDate;
-  final DateTime endDate;
+  final Map<String, dynamic> period;
+  final int totalAlarms;
+  final int successAlarms;
+  final int failedAlarms;
+  final double successRate;
+  final int totalPoints;
+  final String averageWakeTime;
   final List<DailyStatistics> dailyStats;
-  final StatisticsOverview summary;
 
   const PeriodStatistics({
-    required this.startDate,
-    required this.endDate,
+    required this.period,
+    required this.totalAlarms,
+    required this.successAlarms,
+    required this.failedAlarms,
+    required this.successRate,
+    required this.totalPoints,
+    required this.averageWakeTime,
     required this.dailyStats,
-    required this.summary,
   });
 
   factory PeriodStatistics.fromJson(Map<String, dynamic> json) {
     return PeriodStatistics(
-      startDate: DateTime.parse(json['startDate'] as String),
-      endDate: DateTime.parse(json['endDate'] as String),
-      dailyStats: (json['dailyStats'] as List)
-          .map((e) => DailyStatistics.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      summary: StatisticsOverview.fromJson(json['summary'] as Map<String, dynamic>),
+      period: json['period'] as Map<String, dynamic>? ?? {},
+      totalAlarms: json['totalAlarms'] as int? ?? 0,
+      successAlarms: json['successAlarms'] as int? ?? 0,
+      failedAlarms: json['failedAlarms'] as int? ?? 0,
+      successRate: (json['successRate'] as num?)?.toDouble() ?? 0.0,
+      totalPoints: json['totalPoints'] as int? ?? 0,
+      averageWakeTime: json['averageWakeTime'] as String? ?? '00:00',
+      dailyStats: (json['dailyStats'] as List?)
+          ?.map((e) => DailyStatistics.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
+      'period': period,
+      'totalAlarms': totalAlarms,
+      'successAlarms': successAlarms,
+      'failedAlarms': failedAlarms,
+      'successRate': successRate,
+      'totalPoints': totalPoints,
+      'averageWakeTime': averageWakeTime,
       'dailyStats': dailyStats.map((e) => e.toJson()).toList(),
-      'summary': summary.toJson(),
     };
   }
 }
 
 /// 일별 통계 모델
 class DailyStatistics {
-  final DateTime date;
+  final String date;
   final int alarmCount;
-  final int successfulWakeups;
-  final int totalCallTime;
-  final int pointsEarned;
-  final int pointsSpent;
+  final int successCount;
+  final int failCount;
+  final int points;
 
   const DailyStatistics({
     required this.date,
     required this.alarmCount,
-    required this.successfulWakeups,
-    required this.totalCallTime,
-    required this.pointsEarned,
-    required this.pointsSpent,
+    required this.successCount,
+    required this.failCount,
+    required this.points,
   });
 
   factory DailyStatistics.fromJson(Map<String, dynamic> json) {
     return DailyStatistics(
-      date: DateTime.parse(json['date'] as String),
-      alarmCount: json['alarmCount'] as int,
-      successfulWakeups: json['successfulWakeups'] as int,
-      totalCallTime: json['totalCallTime'] as int,
-      pointsEarned: json['pointsEarned'] as int,
-      pointsSpent: json['pointsSpent'] as int,
+      date: json['date'] as String? ?? '',
+      alarmCount: json['alarmCount'] as int? ?? 0,
+      successCount: json['successCount'] as int? ?? 0,
+      failCount: json['failCount'] as int? ?? 0,
+      points: json['points'] as int? ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'date': date.toIso8601String(),
+      'date': date,
       'alarmCount': alarmCount,
-      'successfulWakeups': successfulWakeups,
-      'totalCallTime': totalCallTime,
-      'pointsEarned': pointsEarned,
-      'pointsSpent': pointsSpent,
+      'successCount': successCount,
+      'failCount': failCount,
+      'points': points,
     };
   }
 }
@@ -522,36 +542,36 @@ class CalendarStatistics {
 /// 캘린더 일자 모델
 class CalendarDay {
   final int day;
-  final bool hasAlarm;
-  final bool wasSuccessful;
   final int alarmCount;
-  final int pointsEarned;
+  final int successCount;
+  final int failCount;
+  final String status;
 
   const CalendarDay({
     required this.day,
-    required this.hasAlarm,
-    required this.wasSuccessful,
     required this.alarmCount,
-    required this.pointsEarned,
+    required this.successCount,
+    required this.failCount,
+    required this.status,
   });
 
   factory CalendarDay.fromJson(Map<String, dynamic> json) {
     return CalendarDay(
-      day: json['day'] as int,
-      hasAlarm: json['hasAlarm'] as bool,
-      wasSuccessful: json['wasSuccessful'] as bool,
-      alarmCount: json['alarmCount'] as int,
-      pointsEarned: json['pointsEarned'] as int,
+      day: json['day'] as int? ?? 0,
+      alarmCount: json['alarmCount'] as int? ?? 0,
+      successCount: json['successCount'] as int? ?? 0,
+      failCount: json['failCount'] as int? ?? 0,
+      status: json['status'] as String? ?? 'none',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'day': day,
-      'hasAlarm': hasAlarm,
-      'wasSuccessful': wasSuccessful,
       'alarmCount': alarmCount,
-      'pointsEarned': pointsEarned,
+      'successCount': successCount,
+      'failCount': failCount,
+      'status': status,
     };
   }
 }

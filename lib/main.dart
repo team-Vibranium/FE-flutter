@@ -9,6 +9,8 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/services/api_service.dart';
+import 'core/services/local_alarm_service.dart';
+import 'core/services/morning_call_alarm_service.dart';
 import 'dart:convert';
 
 // 글로벌 Navigator Key
@@ -54,9 +56,9 @@ void navigateToAlarmScreen(String payload) {
           'title': '알람',
         },
       );
-      print('✅ 기본값으로 네비게이션 완료');
+      print(' 기본값으로 네비게이션 완료');
     } else {
-      print('❌ navigatorKey.currentState가 null입니다 (기본값)');
+      print('navigatorKey.currentState가 null입니다 (기본값)');
     }
   }
 }
@@ -68,9 +70,9 @@ void main() async {
   // 환경변수 파일 로드
   try {
     await dotenv.load(fileName: ".env");
-    print('✅ .env 파일이 로드되었습니다.');
+    print('.env 파일이 로드되었습니다.');
   } catch (e) {
-    print('⚠️ .env 파일을 찾을 수 없습니다. 기본값을 사용합니다: $e');
+    print('.env 파일을 찾을 수 없습니다. 기본값을 사용합니다: $e');
   }
   
   // 개발 환경으로 설정 (실제 배포시에는 production으로 변경)
@@ -78,10 +80,35 @@ void main() async {
   
   // API 서비스 초기화
   ApiService().initialize();
-  print('🌐 API 서비스가 초기화되었습니다.');
-  print('🔗 현재 설정된 Base URL: ${EnvironmentConfig.baseUrl}');
-  print('🏷️ 현재 환경: ${EnvironmentConfig.current}');
-  print('📄 .env BASE_URL: ${dotenv.env['BASE_URL']}');
+  print('API 서비스가 초기화되었습니다.');
+  print('현재 설정된 Base URL: ${EnvironmentConfig.baseUrl}');
+  print('현재 환경: ${EnvironmentConfig.current}');
+  print('.env BASE_URL: ${dotenv.env['BASE_URL']}');
+  
+  // 로컬 알람 서비스 초기화
+  final alarmInitResult = await LocalAlarmService.initializeOnAppStart();
+  if (alarmInitResult) {
+    print('⏰ 로컬 알람 서비스가 초기화되었습니다.');
+  } else {
+    print('⚠️ 로컬 알람 서비스 초기화에 실패했습니다.');
+  }
+  
+  // 모닝콜 알람 서비스 초기화 (API 키는 환경변수에서)
+  final String gptApiKey = dotenv.env['OPENAI_API_KEY'] ?? dotenv.env['GPT_API_KEY'] ?? '';
+  print('🔑 GPT API 키 설정됨: ${gptApiKey.isNotEmpty}');
+  if (gptApiKey.isNotEmpty) {
+    try {
+      await MorningCallAlarmService().initialize(
+        gptApiKey: gptApiKey,
+        userName: '예훈', // 기본 사용자 이름
+      );
+      print('🌅 모닝콜 서비스 초기화 완료');
+    } catch (e) {
+      print('❌ 모닝콜 서비스 초기화 실패: $e');
+    }
+  } else {
+    print('⚠️ GPT API 키가 설정되지 않았습니다. 모닝콜 기능을 사용할 수 없습니다.');
+  }
   
   runApp(
     const ProviderScope(

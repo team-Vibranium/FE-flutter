@@ -53,6 +53,8 @@ class BaseApiService {
   /// HTTP 클라이언트 초기화
   void initialize() {
     _httpClient = http.Client();
+    print('🌐 HTTP 클라이언트 초기화 완료');
+    print('🔗 Base URL: ${EnvironmentConfig.baseUrl}');
   }
 
   /// 액세스 토큰 설정
@@ -159,8 +161,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      debugPrint('POST: $uri');
-      debugPrint('Body: ${body != null ? jsonEncode(body) : 'null'}');
+      print('🌐 POST 요청 시작: $uri');
+      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
+      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
 
       final response = await _httpClient.post(
         uri,
@@ -168,12 +171,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
+      print('✅ POST 응답 성공: ${response.statusCode}');
+      print('📄 응답 헤더: ${response.headers}');
+      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      throw const NetworkException('인터넷 연결을 확인해주세요');
+    } on SocketException catch (e) {
+      print('❌ 소켓 연결 실패: $e');
+      throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
+      print('❌ HTTP 오류: ${e.message}');
       throw NetworkException('네트워크 오류: ${e.message}');
+    } on TimeoutException catch (e) {
+      print('❌ 타임아웃 오류: $e');
+      throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
+      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
       if (e is ApiException) rethrow;
       throw ApiException('POST 요청 실패: $e');
     }
@@ -188,8 +201,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      debugPrint('PUT: $uri');
-      debugPrint('Body: ${body != null ? jsonEncode(body) : 'null'}');
+      print('🌐 PUT 요청 시작: $uri');
+      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
+      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
 
       final response = await _httpClient.put(
         uri,
@@ -197,12 +211,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
+      print('✅ PUT 응답 성공: ${response.statusCode}');
+      print('📄 응답 헤더: ${response.headers}');
+      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      throw const NetworkException('인터넷 연결을 확인해주세요');
+    } on SocketException catch (e) {
+      print('❌ 소켓 연결 실패: $e');
+      throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
+      print('❌ HTTP 오류: ${e.message}');
       throw NetworkException('네트워크 오류: ${e.message}');
+    } on TimeoutException catch (e) {
+      print('❌ 타임아웃 오류: $e');
+      throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
+      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
       if (e is ApiException) rethrow;
       throw ApiException('PUT 요청 실패: $e');
     }
@@ -217,8 +241,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      debugPrint('PATCH: $uri');
-      debugPrint('Body: ${body != null ? jsonEncode(body) : 'null'}');
+      print('🌐 PATCH 요청 시작: $uri');
+      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
+      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
 
       final response = await _httpClient.patch(
         uri,
@@ -226,12 +251,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
+      print('✅ PATCH 응답 성공: ${response.statusCode}');
+      print('📄 응답 헤더: ${response.headers}');
+      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      throw const NetworkException('인터넷 연결을 확인해주세요');
+    } on SocketException catch (e) {
+      print('❌ 소켓 연결 실패: $e');
+      throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
+      print('❌ HTTP 오류: ${e.message}');
       throw NetworkException('네트워크 오류: ${e.message}');
+    } on TimeoutException catch (e) {
+      print('❌ 타임아웃 오류: $e');
+      throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
+      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
       if (e is ApiException) rethrow;
       throw ApiException('PATCH 요청 실패: $e');
     }
@@ -245,19 +280,30 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      debugPrint('DELETE: $uri');
+      print('🌐 DELETE 요청 시작: $uri');
+      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
 
       final response = await _httpClient.delete(
         uri,
         headers: _getHeaders(additionalHeaders: headers),
       );
 
+      print('✅ DELETE 응답 성공: ${response.statusCode}');
+      print('📄 응답 헤더: ${response.headers}');
+      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       return _handleResponse<T>(response, fromJson);
-    } on SocketException {
-      throw const NetworkException('인터넷 연결을 확인해주세요');
+    } on SocketException catch (e) {
+      print('❌ 소켓 연결 실패: $e');
+      throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
+      print('❌ HTTP 오류: ${e.message}');
       throw NetworkException('네트워크 오류: ${e.message}');
+    } on TimeoutException catch (e) {
+      print('❌ 타임아웃 오류: $e');
+      throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
+      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
       if (e is ApiException) rethrow;
       throw ApiException('DELETE 요청 실패: $e');
     }
@@ -268,31 +314,41 @@ class BaseApiService {
     http.Response response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
-    debugPrint('Response Status: ${response.statusCode}');
-    debugPrint('Response Body: ${response.body}');
+    print('📊 응답 상태 코드: ${response.statusCode}');
+    print('📝 응답 본문 길이: ${response.body.length}');
 
     // 상태 코드에 따른 처리
     switch (response.statusCode) {
       case 200:
       case 201:
+        print('✅ 성공 응답 처리 중...');
         return _parseSuccessResponse<T>(response, fromJson);
       case 400:
+        print('❌ 잘못된 요청 (400)');
         throw _parseErrorResponse(response, '잘못된 요청입니다');
       case 401:
+        print('❌ 인증 실패 (401)');
         throw _parseAuthenticationError(response);
       case 403:
+        print('❌ 권한 없음 (403)');
         throw AuthorizationException(_parseErrorMessage(response, '권한이 없습니다'));
       case 404:
+        print('❌ 리소스 없음 (404)');
         throw ApiException(_parseErrorMessage(response, '요청한 리소스를 찾을 수 없습니다'), statusCode: 404);
       case 422:
+        print('❌ 입력 데이터 오류 (422)');
         throw ApiException(_parseErrorMessage(response, '입력 데이터가 올바르지 않습니다'), statusCode: 422);
       case 500:
+        print('❌ 서버 내부 오류 (500)');
         throw ServerException(_parseErrorMessage(response, '서버 내부 오류가 발생했습니다'));
       case 502:
+        print('❌ 게이트웨이 오류 (502)');
         throw ServerException(_parseErrorMessage(response, '서버 게이트웨이 오류가 발생했습니다'), statusCode: 502);
       case 503:
+        print('❌ 서비스 사용 불가 (503)');
         throw ServerException(_parseErrorMessage(response, '서버를 일시적으로 사용할 수 없습니다'), statusCode: 503);
       default:
+        print('❌ 알 수 없는 오류 (${response.statusCode})');
         throw ServerException(
           _parseErrorMessage(response, '알 수 없는 서버 오류가 발생했습니다'),
           statusCode: response.statusCode,

@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sound_selection_screen.dart';
+import '../core/services/morning_call_alarm_service.dart';
+import '../core/services/local_alarm_service.dart';
+import '../core/providers/auth_provider.dart';
 
-class AlarmAddScreen extends StatefulWidget {
+class AlarmAddScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? alarmData;
   final Function(Map<String, dynamic>)? onAlarmSaved;
   
   const AlarmAddScreen({super.key, this.alarmData, this.onAlarmSaved});
 
   @override
-  State<AlarmAddScreen> createState() => _AlarmAddScreenState();
+  ConsumerState<AlarmAddScreen> createState() => _AlarmAddScreenState();
 }
 
-class _AlarmAddScreenState extends State<AlarmAddScreen> {
+class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 7, minute: 0);
   String _selectedAlarmType = '일반알람';
   String _selectedMission = '퍼즐';
@@ -47,11 +51,23 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
       final alarm = widget.alarmData!;
       
       // 시간 설정
-      final timeParts = alarm['time'].split(':');
-      _selectedTime = TimeOfDay(
-        hour: int.parse(timeParts[0]),
-        minute: int.parse(timeParts[1]),
-      );
+      if (alarm['time'] != null) {
+        // time 필드가 있는 경우
+        final timeParts = alarm['time'].split(':');
+        _selectedTime = TimeOfDay(
+          hour: int.parse(timeParts[0]),
+          minute: int.parse(timeParts[1]),
+        );
+      } else if (alarm['hour'] != null && alarm['minute'] != null) {
+        // hour와 minute 필드가 있는 경우
+        _selectedTime = TimeOfDay(
+          hour: alarm['hour'] as int,
+          minute: alarm['minute'] as int,
+        );
+      } else {
+        // 기본값 설정
+        _selectedTime = TimeOfDay.now();
+      }
       
       // 알람 타입 설정 (enum을 문자열로 변환)
       if (alarm['type'] == 'NORMAL' || alarm['type'] == '일반알람') {
@@ -62,60 +78,94 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
       
       // 요일 설정
       _selectedDays.clear();
-      _selectedDays.addAll(List<String>.from(alarm['days']));
+      if (alarm['days'] != null) {
+        _selectedDays.addAll(List<String>.from(alarm['days']));
+      } else if (alarm['repeatDays'] != null) {
+        // repeatDays가 숫자 리스트인 경우 (1=월요일, 7=일요일)
+        final repeatDays = alarm['repeatDays'] as List<dynamic>?;
+        if (repeatDays != null && repeatDays.isNotEmpty) {
+          for (final day in repeatDays) {
+            if (day is int) {
+              switch (day) {
+                case 1: _selectedDays.add('월'); break;
+                case 2: _selectedDays.add('화'); break;
+                case 3: _selectedDays.add('수'); break;
+                case 4: _selectedDays.add('목'); break;
+                case 5: _selectedDays.add('금'); break;
+                case 6: _selectedDays.add('토'); break;
+                case 7: _selectedDays.add('일'); break;
+              }
+            } else if (day is String) {
+              _selectedDays.add(day);
+            }
+          }
+        }
+      }
       
       // 제목 설정
       if (alarm['title'] != null) {
-        _alarmTitleController.text = alarm['title'];
+        _alarmTitleController.text = alarm['title'].toString();
       } else if (alarm['tag'] != null) {
-        _alarmTitleController.text = alarm['tag'];
+        _alarmTitleController.text = alarm['tag'].toString();
+      } else if (alarm['label'] != null) {
+        _alarmTitleController.text = alarm['label'].toString();
       } else {
         _alarmTitleController.text = '알람';
       }
       
       // 상황 설정
       if (alarm['situation'] != null) {
-        _situationController.text = alarm['situation'];
+        _situationController.text = alarm['situation'].toString();
+      } else if (alarm['label'] != null) {
+        _situationController.text = alarm['label'].toString();
       }
       
       // 미션 설정
       if (alarm['mission'] != null) {
-        _selectedMission = alarm['mission'];
+        _selectedMission = alarm['mission'].toString();
       }
       
       // 사운드 설정
       if (alarm['sound'] != null) {
-        _selectedSound = alarm['sound'];
+        _selectedSound = alarm['sound'].toString();
+      } else if (alarm['soundPath'] != null) {
+        _selectedSound = alarm['soundPath'].toString();
       }
       
       // 목소리 설정
       if (alarm['voice'] != null) {
-        _selectedVoice = alarm['voice'];
+        _selectedVoice = alarm['voice'].toString();
       }
       
       // 컨셉 설정
       if (alarm['concept'] != null) {
-        _selectedConcept = alarm['concept'];
+        _selectedConcept = alarm['concept'].toString();
       }
       
       // 볼륨 설정
       if (alarm['volume'] != null) {
-        _volume = alarm['volume'].toDouble();
+        _volume = (alarm['volume'] is double) ? alarm['volume'] : alarm['volume'].toDouble();
       }
       
       // 진동 설정
       if (alarm['isVibrationEnabled'] != null) {
-        _isVibrationEnabled = alarm['isVibrationEnabled'];
+        _isVibrationEnabled = alarm['isVibrationEnabled'] as bool;
+      } else if (alarm['vibrate'] != null) {
+        _isVibrationEnabled = alarm['vibrate'] as bool;
       }
       
       // 스누즈 설정
       if (alarm['snoozeMinutes'] != null) {
-        _snoozeMinutes = alarm['snoozeMinutes'];
+        _snoozeMinutes = alarm['snoozeMinutes'] is int ? alarm['snoozeMinutes'] : int.tryParse(alarm['snoozeMinutes'].toString()) ?? 5;
+      } else if (alarm['snoozeInterval'] != null) {
+        _snoozeMinutes = alarm['snoozeInterval'] is int ? alarm['snoozeInterval'] : int.tryParse(alarm['snoozeInterval'].toString()) ?? 5;
       }
       
       if (alarm['snoozeCount'] != null) {
-        _snoozeCount = alarm['snoozeCount'];
+        _snoozeCount = alarm['snoozeCount'] is int ? alarm['snoozeCount'] : int.tryParse(alarm['snoozeCount'].toString()) ?? 3;
       }
+      
+      // 스누즈 활성화 설정은 _snoozeCount로 대체 (0이면 비활성화)
       
     } else {
       // 새 알람일 때 기본값 설정
@@ -823,38 +873,135 @@ class _AlarmAddScreenState extends State<AlarmAddScreen> {
     }
   }
 
-  void _saveAlarm() {
-    // 알람 데이터 생성
-    final alarmData = {
-      'id': widget.alarmData?['id'] ?? DateTime.now().millisecondsSinceEpoch,
-      'time': '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-      'days': List<String>.from(_selectedDays),
-      'type': _selectedAlarmType,
-      'isEnabled': widget.alarmData?['isEnabled'] ?? true,
-      'tag': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '새 알람',
-      'successRate': widget.alarmData?['successRate'] ?? 0,
-      'mission': _selectedMission,
-      'sound': _selectedSound,
-      'voice': _selectedVoice,
-      'concept': _selectedConcept,
-      'volume': _volume,
-      'isVibrationEnabled': _isVibrationEnabled,
-      'snoozeMinutes': _snoozeMinutes,
-      'snoozeCount': _snoozeCount,
-      'situation': _situationController.text,
-      'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
-    };
+  Future<void> _saveAlarm() async {
+    try {
+      if (_selectedAlarmType == '전화알람') {
+        // GPT 모닝콜 알람 생성
+        await _saveGPTMorningCallAlarm();
+      } else {
+        // 일반 알람 생성
+        await _saveLocalAlarm();
+      }
 
-    // 콜백으로 알람 데이터 전달
-    widget.onAlarmSaved?.call(alarmData);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.alarmData != null ? '알람이 수정되었습니다!' : '알람이 저장되었습니다!'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('알람 저장 중 오류가 발생했습니다: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(widget.alarmData != null ? '알람이 수정되었습니다!' : '알람이 저장되었습니다!'),
-        duration: const Duration(seconds: 2),
-      ),
+  /// GPT 모닝콜 알람 저장
+  Future<void> _saveGPTMorningCallAlarm() async {
+    print('🌅 GPT 모닝콜 알람 저장 시작...');
+    print('📝 알람 제목: ${_alarmTitleController.text}');
+    print('⏰ 알람 시간: ${_selectedTime.hour}:${_selectedTime.minute}');
+    print('📅 선택된 요일: $_selectedDays');
+    print('🎯 알람 타입: $_selectedAlarmType');
+    
+    try {
+      // 현재 사용자 정보 가져오기
+      final authState = ref.read(authStateProvider);
+      final userName = authState.user?.nickname ?? '사용자';
+      print('👤 현재 사용자 닉네임: $userName');
+      
+      final service = MorningCallAlarmService();
+      print('🔧 MorningCallAlarmService 인스턴스 생성 완료');
+      
+      // 사용자 이름 업데이트
+      service.updateUserName(userName);
+      
+      // 서비스가 초기화되지 않은 경우 초기화 시도
+      if (!service.isInitialized) {
+        print('⚠️ 서비스가 초기화되지 않음. 초기화 시도 중...');
+        await service.initialize(
+          gptApiKey: '', // API 키 없이도 기본 알람 기능은 동작
+          userName: userName,
+        );
+        print('✅ 서비스 초기화 완료');
+      } else {
+        print('✅ 서비스가 이미 초기화됨');
+      }
+
+      // 선택된 요일들을 숫자 리스트로 변환 (1=월요일, 7=일요일)
+      final selectedDayNumbers = <int>[];
+      for (int i = 0; i < _selectedDays.length; i++) {
+        final dayName = _days[i];
+        if (_selectedDays.contains(dayName)) {
+          selectedDayNumbers.add(i + 1);
+        }
+      }
+      print('📅 변환된 요일 숫자: $selectedDayNumbers');
+
+      final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '모닝콜 알람';
+      print('📝 최종 알람 제목: $title');
+      
+      final scheduledTime = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      );
+      print('⏰ 스케줄된 시간: $scheduledTime');
+      
+      print('🚀 scheduleMorningCallAlarm 호출 시작...');
+      await service.scheduleMorningCallAlarm(
+        title: title,
+        scheduledTime: scheduledTime,
+        repeatDays: selectedDayNumbers.isNotEmpty ? selectedDayNumbers : null,
+        description: _situationController.text.isNotEmpty ? _situationController.text : '모닝콜 알람',
+      );
+      print('✅ scheduleMorningCallAlarm 호출 완료');
+      
+    } catch (e, stackTrace) {
+      print('❌ GPT 모닝콜 알람 저장 중 오류 발생:');
+      print('   오류 메시지: $e');
+      print('   스택 트레이스: $stackTrace');
+      rethrow; // 에러를 다시 던져서 상위에서 처리하도록 함
+    }
+  }
+
+  /// 일반 로컬 알람 저장
+  Future<void> _saveLocalAlarm() async {
+    final service = LocalAlarmService.instance;
+    
+    // 서비스 초기화
+    await service.initialize();
+
+    // 선택된 요일들을 숫자 리스트로 변환
+    final selectedDayNumbers = <int>[];
+    for (int i = 0; i < _selectedDays.length; i++) {
+      final dayName = _days[i];
+      if (_selectedDays.contains(dayName)) {
+        selectedDayNumbers.add(i + 1);
+      }
+    }
+
+    final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
+    
+    await service.createAlarm(
+      title: title,
+      hour: _selectedTime.hour,
+      minute: _selectedTime.minute,
+      repeatDays: selectedDayNumbers,
+      vibrate: _isVibrationEnabled,
+      snoozeEnabled: true,
+      snoozeInterval: _snoozeMinutes,
+      label: title,
+      isEnabled: true,
     );
-    Navigator.pop(context);
   }
 
   @override

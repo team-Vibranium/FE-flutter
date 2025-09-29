@@ -6,6 +6,7 @@ import 'user_api_service.dart';
 import 'call_log_api_service.dart';
 import 'points_api_service.dart';
 import 'mission_api_service.dart';
+import 'mission_results_api_service.dart';
 import 'statistics_api_service.dart';
 
 /// 메인 API 서비스 클래스
@@ -24,6 +25,7 @@ class ApiService {
   late final CallLogApiService callLog;
   late final PointsApiService points;
   late final MissionApiService mission;
+  late final MissionResultsApiService missionResults;
   late final StatisticsApiService statistics;
 
   bool _isInitialized = false;
@@ -32,18 +34,36 @@ class ApiService {
   void initialize() {
     if (_isInitialized) return;
 
+    print('🚀 API 서비스 초기화 시작...');
+
     // 기본 HTTP 클라이언트 초기화
     _baseApi.initialize();
+    print('✅ BaseApiService 초기화 완료');
 
     // 각 도메인 서비스 초기화
     auth = AuthApiService();
+    print('✅ AuthApiService 초기화 완료');
+    
     user = UserApiService();
+    print('✅ UserApiService 초기화 완료');
+    
     callLog = CallLogApiService();
+    print('✅ CallLogApiService 초기화 완료');
+    
     points = PointsApiService();
+    print('✅ PointsApiService 초기화 완료');
+    
     mission = MissionApiService();
+    print('✅ MissionApiService 초기화 완료');
+    
+    missionResults = MissionResultsApiService();
+    print('✅ MissionResultsApiService 초기화 완료');
+    
     statistics = StatisticsApiService();
+    print('✅ StatisticsApiService 초기화 완료');
 
     _isInitialized = true;
+    print('🎉 모든 API 서비스 초기화 완료!');
   }
 
   /// 초기화 상태 확인
@@ -86,7 +106,7 @@ class ApiService {
         statistics.getOverview(),
         statistics.getTodayStatistics(),
         callLog.getRecentCallLogs(limit: 5),
-        mission.getRecentMissionResults(limit: 5),
+        missionResults.getRecentMissionResults(limit: 5),
       ]);
 
       return {
@@ -191,15 +211,12 @@ class ApiService {
           final missionType = entry.key;
           final result = entry.value as Map<String, dynamic>;
           
-          final missionResult = await mission.saveMissionResult(
-            alarmId: alarmId,
-            missionType: MissionType.values.firstWhere(
-              (e) => e.name == missionType,
-              orElse: () => MissionType.math,
-            ),
-            isCompleted: result['isCompleted'] ?? false,
+          final missionResult = await this.missionResults.createMissionResult(
+            callLogId: callLogResult.data!.id,
+            missionType: missionType,
+            success: result['isCompleted'] ?? false,
             score: result['score'] ?? 0,
-            resultData: result,
+            metadata: result,
           );
           
           missionResultData.add(missionResult.data);
@@ -207,7 +224,7 @@ class ApiService {
           // 미션 완료 시 추가 포인트
           if (result['isCompleted'] == true) {
             final missionPointResult = await points.earnPointsForMissionComplete(
-              missionId: missionResult.data!.id,
+              missionId: missionResult.data!['id'].toString(),
               missionType: MissionType.values.firstWhere(
                 (e) => e.name == missionType,
                 orElse: () => MissionType.math,

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'alarm_add_screen.dart';
+import '../core/services/local_alarm_service.dart';
+import '../core/services/morning_call_alarm_service.dart';
+import '../core/models/local_alarm.dart';
 import 'stats_screen.dart';
 import 'profile_screen.dart';
 import 'call_history_screen.dart';
@@ -61,6 +64,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     _switchAnimationController.dispose();
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -127,9 +131,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
       body: _buildBody(dashboardState),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: dashboardState.currentIndex,
-        onTap: (index) {
-          ref.read(dashboardProvider.notifier).setCurrentIndex(index);
-        },
+              onTap: (index) {
+                ref.read(dashboardProvider.notifier).setCurrentIndex(index);
+              },
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
@@ -176,7 +180,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: Text(result['isConnected'] ? '✅ 서버 연결 성공!' : '❌ 서버 연결 실패'),
+                          title: Text(result['isConnected'] ? '서버 연결 성공!' : '서버 연결 실패'),
                           content: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,7 +227,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('✅ 즉시 테스트 알람 설정 완료!\n10초 후에 울립니다.'),
+                            content: Text('즉시 테스트 알람 설정 완료!\n10초 후에 울립니다.'),
                             backgroundColor: Colors.green,
                             duration: const Duration(seconds: 3),
                           ),
@@ -233,7 +237,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('❌ 테스트 알람 설정 실패: $e'),
+                            content: Text('테스트 알람 설정 실패: $e'), 
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -338,66 +342,203 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     }
   }
 
-  Widget _buildAlarmTab(DashboardState state) {
-    if (state.alarms.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.alarm_off,
-              size: 80,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 16),
-            Text(
-              '알람 없으면 텅텅…',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
+  /// 모든 알람(일반 알람 + 모닝콜 알람)을 로드하는 메서드
+  Future<List<dynamic>> _loadAllAlarms() async {
+    try {
+      // 1. 일반 알람 로드
+      final localAlarms = await LocalAlarmService.instance.getAllAlarms();
+      
+      // 2. 모닝콜 알람 로드
+      List<Map<String, dynamic>> morningCallAlarms = [];
+      try {
+        morningCallAlarms = await MorningCallAlarmService().getAllAlarms();
+        print('🌅 모닝콜 알람 ${morningCallAlarms.length}개 로드됨');
+      } catch (e) {
+        print('⚠️ 모닝콜 알람 로드 실패: $e');
+      }
+      
+      // 3. 모든 알람 합치기
+      final List<dynamic> allAlarms = [...localAlarms];
+      
+      // 모닝콜 알람을 LocalAlarm 형식으로 변환하여 추가
+      for (final mcAlarm in morningCallAlarms) {
+        try {
+          final DateTime scheduledTime = DateTime.parse(mcAlarm['scheduledTime'] as String);
+          final List<int>? repeatDays = mcAlarm['repeatDays'] != null 
+              ? List<int>.from(mcAlarm['repeatDays'] as List)
+              : null;
+          
+          // 요일 변환 (1=월요일, 7=일요일 -> '월', '화', ...)
+          final List<String> days = [];
+          if (repeatDays != null && repeatDays.isNotEmpty) {
+            for (final day in repeatDays) {
+              switch (day) {
+                case 1: days.add('월'); break;
+                case 2: days.add('화'); break;
+                case 3: days.add('수'); break;
+                case 4: days.add('목'); break;
+                case 5: days.add('금'); break;
+                case 6: days.add('토'); break;
+                case 7: days.add('일'); break;
+              }
+            }
+          }
+          
+          // LocalAlarm 형식으로 변환
+          final localAlarm = LocalAlarm(
+            id: mcAlarm['id'].toString(),
+            title: mcAlarm['title'] as String? ?? '모닝콜',
+            hour: scheduledTime.hour,
+            minute: scheduledTime.minute,
+            isEnabled: mcAlarm['isActive'] as bool? ?? true,
+            repeatDays: repeatDays != null ? List<int>.from(repeatDays) : [],
+            label: mcAlarm['description'] as String? ?? '',
+            type: 'morning_call', // 모닝콜 타입 표시
+            createdAt: DateTime.parse(mcAlarm['createdAt'] as String? ?? DateTime.now().toIso8601String()),
+            updatedAt: DateTime.now(),
+          );
+          
+          allAlarms.add(localAlarm);
+        } catch (e) {
+          print('모닝콜 알람 변환 실패: $e');
+        }
+      }
+      
+      print('📋 총 ${allAlarms.length}개 알람 로드됨 (일반: ${localAlarms.length}, 모닝콜: ${morningCallAlarms.length})');
+      return allAlarms;
+    } catch (e) {
+      print('알람 로드 중 오류 발생: $e');
+      rethrow;
     }
+  }
 
-    return Column(
-      children: [
-        // 다음 알람 요약 카드
-        _buildNextAlarmSummary(state),
-        
-        // 알람 타입 필터 슬라이더
-        _buildAlarmTypeSlider(state),
-        
-        // 알람 리스트 (최소 3개 표시)
-        Expanded(
-          child: AnimatedBuilder(
-            animation: _animation,
-            builder: (context, child) {
-              final filteredAlarms = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms();
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: filteredAlarms.length,
-                itemBuilder: (context, index) {
-                  final alarm = filteredAlarms[index];
-                  final originalIndex = state.alarms.indexOf(alarm);
-                  return _buildCompactAlarmCard(alarm, originalIndex, index);
-                },
+  Widget _buildAlarmTab(DashboardState state) {
+    return Consumer(
+      builder: (context, ref, child) {
+        return FutureBuilder<List<dynamic>>(
+          future: _loadAllAlarms(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
               );
-            },
-          ),
-        ),
-      ],
+            }
+            
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 80,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '알람을 불러오는 중 오류가 발생했습니다',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+            
+            final allAlarms = snapshot.data ?? [];
+            
+            if (allAlarms.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.alarm_off,
+                      size: 80,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      '알람 없으면 텅텅…',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '알람 추가 버튼을 눌러서 알람을 만들어보세요!',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                // 다음 알람 요약 카드
+                _buildNextAlarmSummary(allAlarms),
+                
+                // 알람 리스트
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: allAlarms.length,
+                    itemBuilder: (context, index) {
+                      final alarm = allAlarms[index];
+                      return _buildLocalAlarmCard(alarm, index);
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildNextAlarmSummary(DashboardState state) {
-    // 다음 알람까지 남은 시간 계산 (더미 데이터)
-    const nextAlarmTime = '6시간 20분';
-    final todayAlarmCount = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms().length;
-    final activeAlarmCount = state.alarms.where((alarm) => alarm.isEnabled).length;
+  Widget _buildNextAlarmSummary(List<dynamic> alarms) {
+    // 다음 알람까지 남은 시간 계산
+    final now = DateTime.now();
+    final nextAlarm = alarms
+        .where((alarm) => alarm.isEnabled)
+        .map((alarm) {
+          final today = DateTime(now.year, now.month, now.day);
+          final alarmTime = DateTime(today.year, today.month, today.day, alarm.hour, alarm.minute);
+          return alarmTime.isBefore(now) ? alarmTime.add(const Duration(days: 1)) : alarmTime;
+        })
+        .fold<DateTime?>(null, (prev, current) {
+          if (prev == null) return current;
+          return current.isBefore(prev) ? current : prev;
+        });
+    
+    String nextAlarmTime = '알람 없음';
+    if (nextAlarm != null) {
+      final difference = nextAlarm.difference(now);
+      final hours = difference.inHours;
+      final minutes = difference.inMinutes % 60;
+      nextAlarmTime = '${hours}시간 ${minutes}분';
+    }
+    
+    final activeAlarmCount = alarms.where((alarm) => alarm.isEnabled).length;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8), // 상하 마진 줄임
@@ -414,7 +555,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -455,7 +596,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
@@ -471,11 +612,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        '전체 $todayAlarmCount개',
+                        '전체 ${alarms.length}개',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -498,13 +639,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                 context,
                 MaterialPageRoute(
                   builder: (context) => AvatarCustomizeScreen(
-                    initialPoints: state.userPoints,
-                    initialAvatar: state.selectedAvatar,
+                    initialPoints: 0,
+                    initialAvatar: 'avatar_1',
                     onAvatarChanged: (points, avatar) {
-                      ref.read(dashboardProvider.notifier).updateUserProfile(
-                        points: points,
-                        avatar: avatar,
-                      );
+                      // 아바타 변경 처리
                     },
                   ),
                 ),
@@ -512,11 +650,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
             },
             child: CircleAvatar(
               radius: 45, // 크기 줄임
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              backgroundColor: Colors.white.withOpacity(0.2),
               child: CircleAvatar(
                 radius: 40, // 크기 줄임
-                backgroundColor: Colors.white.withValues(alpha: 0.9),
-                child: _getAvatarIcon(state.selectedAvatar, size: 45), // 크기 조정
+                backgroundColor: Colors.white.withOpacity(0.9),
+                child: _getAvatarIcon('avatar_1', size: 45), // 크기 조정
               ),
             ),
           ),
@@ -867,6 +1005,186 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLocalAlarmCard(LocalAlarm alarm, int index) {
+    final timeText = '${alarm.hour.toString().padLeft(2, '0')}:${alarm.minute.toString().padLeft(2, '0')}';
+    final daysText = alarm.repeatDays.isEmpty 
+        ? '한 번만' 
+        : alarm.repeatDays.length >= 5 
+            ? '평일' 
+            : alarm.repeatDays.map((day) => ['일', '월', '화', '수', '목', '금', '토'][day]).join(', ');
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: alarm.isEnabled 
+              ? (alarm.type == 'morning_call' 
+                  ? Colors.blue 
+                  : Theme.of(context).colorScheme.primary)
+              : Colors.grey,
+          child: Icon(
+            alarm.type == 'morning_call' ? Icons.phone : Icons.alarm,
+            color: alarm.isEnabled ? Colors.white : Colors.grey[600],
+          ),
+        ),
+        title: Text(
+          alarm.title,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: alarm.isEnabled ? null : Colors.grey[600],
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('$timeText - $daysText'),
+                const SizedBox(width: 8),
+                if (alarm.type == 'morning_call')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '전화',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (alarm.label != null && alarm.label!.isNotEmpty)
+              Text(
+                alarm.label!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: alarm.isEnabled,
+              onChanged: (value) async {
+                try {
+                  final updatedAlarm = alarm.copyWith(isEnabled: value);
+                  await LocalAlarmService.instance.updateAlarm(updatedAlarm);
+                  setState(() {});
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('알람 상태 변경 실패: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => AlarmAddScreen(
+                        alarmData: {
+                          'id': alarm.id,
+                          'title': alarm.title,
+                          'hour': alarm.hour,
+                          'minute': alarm.minute,
+                          'time': '${alarm.hour.toString().padLeft(2, '0')}:${alarm.minute.toString().padLeft(2, '0')}',
+                          'isEnabled': alarm.isEnabled,
+                          'repeatDays': alarm.repeatDays,
+                          'soundPath': alarm.soundPath,
+                          'vibrate': alarm.vibrate,
+                          'snoozeEnabled': alarm.snoozeEnabled,
+                          'snoozeInterval': alarm.snoozeInterval,
+                          'label': alarm.label,
+                          'type': alarm.type == 'morning_call' ? '전화알람' : '일반알람',
+                        },
+                      ),
+                    ),
+                  );
+                } else if (value == 'delete') {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('알람 삭제'),
+                      content: const Text('이 알람을 삭제하시겠습니까?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('취소'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('삭제'),
+                        ),
+                      ],
+                    ),
+                  );
+                  
+                  if (confirmed == true) {
+                    try {
+                      if (alarm.type == 'morning_call') {
+                        // 모닝콜 알람 삭제
+                        await MorningCallAlarmService().deleteAlarm(int.parse(alarm.id));
+                        print('🌅 모닝콜 알람 삭제: ${alarm.id}');
+                      } else {
+                        // 일반 알람 삭제
+                        await LocalAlarmService.instance.deleteAlarm(alarm.id);
+                        print('⏰ 일반 알람 삭제: ${alarm.id}');
+                      }
+                      setState(() {});
+                    } catch (e) {
+                      print('❌ 알람 삭제 실패: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('알람 삭제 실패: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit),
+                      SizedBox(width: 8),
+                      Text('수정'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('삭제', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
