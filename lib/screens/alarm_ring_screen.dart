@@ -30,10 +30,13 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   late Animation<double> _fadeAnimation;
   
   Timer? _silenceTimer;
-  int _silenceCountdown = 20;
+  int _silenceCountdown = 15; // 무발화 15초 유지 시 실패 처리
+  Timer? _maxDurationTimer; // 최대 통화 시간 제한 (2분)
   bool _isRecording = false;
   bool _isCallActive = false; // 전화 받기 전까지는 false
   bool _isCallAccepted = false; // 전화 받았는지 여부
+  DateTime? _lastUserSpeechTime; // 마지막 사용자 발화 시간
+  bool _userHasSpoken = false; // 사용자가 한 번이라도 말했는지 여부
 
   // GPT 서비스
   final GPTRealtimeService _gptService = GPTRealtimeService();
@@ -50,9 +53,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
     super.initState();
     _setupAnimations();
     _initializeRenderer();
-    if (widget.alarmType == '전화알람') {
-      _startSilenceTimer();
-    }
+    // 타이머는 전화 받은 후에 시작 (initState에서는 시작 안 함)
   }
 
   Future<void> _initializeRenderer() async {
@@ -91,15 +92,44 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   }
 
   void _startSilenceTimer() {
+    print('⏰ 무발화 타이머 시작 (15초)');
+    _lastUserSpeechTime = DateTime.now(); // 타이머 시작 시점 기록
+
+    _silenceTimer?.cancel(); // 기존 타이머 취소
     _silenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_silenceCountdown > 0) {
-        setState(() {
-          _silenceCountdown--;
-        });
+      if (!_isCallAccepted) {
+        // 전화를 아직 안 받았으면 타이머 정지
+        return;
+      }
+
+      final now = DateTime.now();
+      final secondsSinceLastSpeech = now.difference(_lastUserSpeechTime ?? now).inSeconds;
+
+      if (secondsSinceLastSpeech >= 15) {
+        print('❌ 15초 동안 사용자 발화 없음 - 알람 실패(무발화)로 종료');
+        _endCallNoTalk();
       } else {
-        _stopAlarm();
+        setState(() {
+          _silenceCountdown = 15 - secondsSinceLastSpeech;
+        });
       }
     });
+  }
+
+  void _resetSilenceTimer() {
+    print('🔄 무발화 타이머 리셋 (사용자 발화 감지됨)');
+    _lastUserSpeechTime = DateTime.now();
+    setState(() {
+      _silenceCountdown = 15;
+    });
+
+    // 사용자가 처음으로 말했으면 1차 성공! GPT가 마무리 멘트 후 알아서 종료함
+    if (!_userHasSpoken) {
+      _userHasSpoken = true;
+      print('✅ 사용자 첫 발화 감지 - 알람 1차 성공! GPT 응답 대기 중...');
+      // GPT가 응답하고 자연스럽게 종료할 때까지 기다림
+      // response.done 메시지 후 자동으로 MissionScreen으로 이동
+    }
   }
 
   @override
@@ -107,6 +137,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
     _pulseController.dispose();
     _fadeController.dispose();
     _silenceTimer?.cancel();
+    _maxDurationTimer?.cancel();
 
     // 스피커폰 비활성화
     Helper.setSpeakerphoneOn(false).catchError((e) {
@@ -331,6 +362,8 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
           
           const SizedBox(height: 16),
           
+          // 통화 중 대화 로그는 화면에 표시하지 않음 (요청사항)
+
           // 마이크 상태
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -361,6 +394,8 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       ),
     );
   }
+
+  // (대화 로그 프리뷰 비표시)
 
   Widget _buildVoiceWaveform() {
     return Container(
@@ -514,7 +549,8 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
         // GPT 서비스 콜백 설정 (통화 시작 전에 설정해야 함!)
         _gptService.onCallStarted = () {
-          print('✅ GPT 통화 시작됨');
+          print('✅ GPT 통화 시작됨 - 무발화 타이머 시작');
+          _startSilenceTimer(); // 통화 시작하면 타이머 시작
         };
 
         _gptService.onCallEnded = () {
@@ -525,6 +561,25 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
         _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
           print('😴 스누즈 요청됨: ${snoozeMinutes}분');
           // 스누즈 처리 (GPT 서비스에서 자동 처리됨)
+        };
+
+        // 사용자 발화 감지 콜백 (타이머 리셋용)
+        _gptService.onUserSpeechDetected = () {
+          if (mounted) {
+            _resetSilenceTimer();
+          }
+        };
+
+        // 대화 내용 표시용 콜백
+        // 통화 화면에 대화 로그는 표시하지 않음
+
+        // GPT 응답 완료 콜백 (사용자 발화 후)
+        _gptService.onGPTResponseCompleted = () {
+          if (mounted) {
+            // 자동 종료/이동을 하지 않고 통화를 계속 유지합니다.
+            // 무발화 60초 타이머로 종료를 제어합니다.
+            print('🎯 GPT 응답 완료 - 통화 유지 (자동 종료 안 함)');
+          }
         };
 
         // 원격 오디오 스트림 설정 (통화 시작 전에 설정!)
@@ -567,6 +622,16 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
         // 콜백 설정 후 통화 시작
         await _gptService.startMorningCall(alarmId: widget.alarmId!);
+
+        // 최대 통화 시간 제한(2분)
+        _maxDurationTimer?.cancel();
+        _maxDurationTimer = Timer(const Duration(minutes: 2), () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('최대 통화 시간(2분)이 초과되어 통화를 종료합니다.')),
+          );
+          _stopAlarm();
+        });
 
       } catch (e) {
         print('❌ GPT 서비스 시작 실패: $e');
@@ -618,11 +683,41 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
   void _stopAlarm() {
     _silenceTimer?.cancel();
+    _maxDurationTimer?.cancel();
     setState(() {
       _isCallActive = false;
     });
+    // 통화 종료 처리
+    try {
+      _gptService.endMorningCall();
+    } catch (_) {}
     
     // 미션 화면으로 이동
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MissionScreen(
+          alarmTitle: '${widget.alarmType} 알람',
+          onMissionCompleted: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _endCallNoTalk() {
+    _silenceTimer?.cancel();
+    _maxDurationTimer?.cancel();
+    setState(() {
+      _isCallActive = false;
+    });
+    // 실패 종료 처리
+    try {
+      _gptService.endMorningCallNoTalk();
+    } catch (_) {}
+    
+    // 미션 화면으로 이동 (실패 상태)
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

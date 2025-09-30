@@ -343,9 +343,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         children: [
@@ -460,7 +460,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
           borderRadius: BorderRadius.circular(6),
           boxShadow: isSelected ? [
             BoxShadow(
-              color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
+              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -554,7 +554,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isConsumption ? Colors.orange.withValues(alpha: 0.3) : Colors.blue.withValues(alpha: 0.3),
+          color: isConsumption ? Colors.orange.withOpacity(0.3) : Colors.blue.withOpacity(0.3),
         ),
       ),
       child: Row(
@@ -768,7 +768,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
@@ -1018,7 +1018,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
+                  color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: color, width: 1.5),
                 ),
@@ -1028,7 +1028,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: color.withValues(alpha: 0.8),
+                      color: color.withOpacity(0.8),
                     ),
                   ),
                 ),

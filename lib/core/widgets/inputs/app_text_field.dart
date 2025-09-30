@@ -102,7 +102,7 @@ class AppTextField extends StatelessWidget {
         filled: true,
         fillColor: enabled 
             ? Theme.of(context).colorScheme.surface
-            : Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.5),
+            : Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
       ),
     );
   }

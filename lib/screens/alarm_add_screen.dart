@@ -1110,8 +1110,18 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   String _buildInstructions() {
     final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
     final situation = _situationController.text.isNotEmpty ? _situationController.text : '일상적인 상황';
-    
-    return '${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation. 사용자와 자연스러운 대화를 나누며 기상하도록 도와주세요.';
+
+    return '''
+${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation.
+
+중요한 규칙:
+1. 먼저 친근하게 인사하고 일어날 시간임을 알려주세요.
+2. 사용자의 컨디션을 묻고 기상을 격려해주세요 (예: "잘 주무셨나요?", "오늘 기분은 어떠세요?", "일어날 준비 되셨나요?").
+3. 사용자가 대답하면, 공감하며 응원의 말을 해주세요.
+4. 그 다음 "그럼 정신을 깨우기 위해 간단한 퀴즈 하나 드릴게요!"라고 말하고 퀴즈를 1개 내주세요 (예: "3 더하기 5는?", "오늘은 무슨 요일인가요?").
+5. 사용자가 퀴즈에 대답하면 (정답이든 오답이든) "잘하셨어요! 이제 화면의 퀴즈를 풀어서 완전히 깨어나세요!"라고 말하세요.
+6. 사용자가 15초 동안 대답하지 않으면 자동으로 다음 단계로 넘어갑니다.
+''';
   }
 
   /// 일반 로컬 알람 저장

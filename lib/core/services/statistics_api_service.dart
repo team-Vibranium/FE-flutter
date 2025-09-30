@@ -31,8 +31,8 @@ class StatisticsApiService {
   }) async {
     try {
       final queryParams = {
-        'startDate': startDate.toIso8601String().split('T')[0],
-        'endDate': endDate.toIso8601String().split('T')[0],
+        'startDate': startDate.toIso8601String().split('.')[0], // "2025-09-30T00:00:00"
+        'endDate': endDate.toIso8601String().split('.')[0],     // "2025-09-30T23:59:59"
       };
 
       return await _baseApi.get<PeriodStatistics>(
@@ -308,8 +308,8 @@ class StatisticsApiService {
   }) async {
     try {
       final queryParams = {
-        'startDate': startDate.toIso8601String().split('T')[0], // YYYY-MM-DD 형식
-        'endDate': endDate.toIso8601String().split('T')[0],
+        'startDate': startDate.toIso8601String().split('.')[0], // "2025-09-30T00:00:00"
+        'endDate': endDate.toIso8601String().split('.')[0],     // "2025-09-30T23:59:59"
       };
 
       return await _baseApi.get<Map<String, dynamic>>(

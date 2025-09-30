@@ -122,15 +122,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               width: 120,
                               height: 120,
                               decoration: BoxDecoration(
-                                color: Theme.of(context).primaryColor.withValues(alpha: 0.15),
+                                color: Theme.of(context).primaryColor.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(60),
                                 border: Border.all(
-                                  color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
+                                  color: Theme.of(context).primaryColor.withOpacity(0.5),
                                   width: 3,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+                                    color: Theme.of(context).primaryColor.withOpacity(0.2),
                                     blurRadius: 10,
                                     spreadRadius: 2,
                                   ),
@@ -142,7 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Theme.of(context).primaryColor,
                                 shadows: [
                                   Shadow(
-                                    color: Colors.black.withValues(alpha: 0.3),
+                                    color: Colors.black.withOpacity(0.3),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -163,7 +163,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Text(
                             'AI와 함께하는 스마트 알람',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -193,7 +193,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                               ),
                               onPressed: () {
                                 setState(() {
@@ -245,7 +245,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 '버전 1.0.0',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                 ),
                 textAlign: TextAlign.center,
               ),

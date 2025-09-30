@@ -116,7 +116,7 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
         
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
-          color: isSelected ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1) : null,
+          color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.1) : null,
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: isSelected 

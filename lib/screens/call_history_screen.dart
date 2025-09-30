@@ -89,7 +89,12 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
         final responseData = response.data as Map<String, dynamic>;
         final callLogsList = responseData['callLogs'] as List<dynamic>? ?? [];
         final newCallLogs = callLogsList
-            .map((item) => CallLog.fromJson(item as Map<String, dynamic>))
+            .map((item) {
+              if (item is CallLog) return item;
+              if (item is Map<String, dynamic>) return CallLog.fromJson(item);
+              return null;
+            })
+            .whereType<CallLog>()
             .toList();
         
         if (mounted) {
@@ -142,6 +147,37 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
       _selectedFilter = filter;
     });
     _updateDisplayedHistory();
+  }
+
+  String _getSummary(CallLog call) {
+    if (call.conversationList != null && call.conversationList!.isNotEmpty) {
+      // 첫 번째 AI 발화를 요약으로 사용
+      final firstAssistant = call.conversationList!
+          .where((u) => u.speaker == 'assistant')
+          .firstOrNull;
+      if (firstAssistant != null) {
+        return firstAssistant.text.length > 50
+            ? '${firstAssistant.text.substring(0, 50)}...'
+            : firstAssistant.text;
+      }
+    }
+    return call.isSuccessful ? '알람 성공' : '알람 실패';
+  }
+
+  String _calculateDuration(CallLog call) {
+    if (call.callEnd == null) {
+      return '진행중';
+    }
+
+    final duration = call.callEnd!.difference(call.callStart);
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+
+    if (minutes > 0) {
+      return '$minutes분 ${seconds}초';
+    } else {
+      return '${seconds}초';
+    }
   }
 
   Widget _buildErrorWidget() {
@@ -299,7 +335,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withOpacity(0.1),
                       blurRadius: 2,
                       offset: const Offset(0, 1),
                     ),
@@ -398,7 +434,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
             fontSize: 12,
             color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.white70
-                : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                : Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
           ),
         ),
       ],
@@ -423,8 +459,8 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
                   'date': call.startTime.toString().substring(0, 10),
                   'status': call.isSuccessful ? '성공' : '실패',
                   'time': call.startTime.toString().substring(11, 16),
-                  'duration': '${call.duration}초',
-                  'summary': call.transcript ?? '통화 내용 없음',
+                  'callStart': call.callStart,
+                  'callEnd': call.callEnd,
                 },
               ),
             ),
@@ -467,14 +503,14 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '${call.startTime.toString().substring(11, 16)} • ${call.duration}초',
+                    '${call.startTime.toString().substring(11, 16)} • ${_calculateDuration(call)}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    call.transcript ?? '통화 내용 없음',
+                    _getSummary(call),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),

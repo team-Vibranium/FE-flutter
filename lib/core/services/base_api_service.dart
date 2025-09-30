@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../environment/environment.dart';
-import '../models/api_models.dart';
+import '../models/api_models.dart' as models;
 
 /// API 예외 클래스
 class ApiException implements Exception {
@@ -74,7 +74,7 @@ class BaseApiService {
   String? get refreshToken => _refreshToken;
 
   /// 인증 토큰 설정
-  void setAuthTokens(AuthToken authToken) {
+  void setAuthTokens(models.AuthToken authToken) {
     _accessToken = authToken.accessToken;
     _refreshToken = authToken.refreshToken;
   }
@@ -111,7 +111,7 @@ class BaseApiService {
   }
 
   /// GET 요청
-  Future<ApiResponse<T>> get<T>(
+  Future<models.ApiResponse<T>> get<T>(
     String path, {
     Map<String, String>? queryParameters,
     Map<String, String>? headers,
@@ -153,7 +153,7 @@ class BaseApiService {
   }
 
   /// POST 요청
-  Future<ApiResponse<T>> post<T>(
+  Future<models.ApiResponse<T>> post<T>(
     String path, {
     Object? body,
     Map<String, String>? headers,
@@ -193,7 +193,7 @@ class BaseApiService {
   }
 
   /// PUT 요청
-  Future<ApiResponse<T>> put<T>(
+  Future<models.ApiResponse<T>> put<T>(
     String path, {
     Object? body,
     Map<String, String>? headers,
@@ -233,7 +233,7 @@ class BaseApiService {
   }
 
   /// PATCH 요청
-  Future<ApiResponse<T>> patch<T>(
+  Future<models.ApiResponse<T>> patch<T>(
     String path, {
     Object? body,
     Map<String, String>? headers,
@@ -273,7 +273,7 @@ class BaseApiService {
   }
 
   /// DELETE 요청
-  Future<ApiResponse<T>> delete<T>(
+  Future<models.ApiResponse<T>> delete<T>(
     String path, {
     Map<String, String>? headers,
     T Function(Map<String, dynamic>)? fromJson,
@@ -310,7 +310,7 @@ class BaseApiService {
   }
 
   /// HTTP 응답 처리
-  ApiResponse<T> _handleResponse<T>(
+  models.ApiResponse<T> _handleResponse<T>(
     http.Response response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
@@ -357,13 +357,13 @@ class BaseApiService {
   }
 
   /// 성공 응답 파싱
-  ApiResponse<T> _parseSuccessResponse<T>(
+  models.ApiResponse<T> _parseSuccessResponse<T>(
     http.Response response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
     try {
       if (response.body.isEmpty) {
-        return ApiResponse.success(null as T);
+        return models.ApiResponse<T>(success: true, data: null, message: null, statusCode: response.statusCode);
       }
 
       final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
@@ -386,17 +386,30 @@ class BaseApiService {
       if (fromJson != null && data != null) {
         debugPrint('🔍 파싱 디버깅 - fromJson 호출 시작');
         try {
-          final parsedData = fromJson(data as Map<String, dynamic>);
-          debugPrint('🔍 파싱 디버깅 - fromJson 성공: $parsedData');
-          return ApiResponse.success(parsedData, message: message);
+          if (data is Map<String, dynamic>) {
+            final parsedData = fromJson(data);
+            debugPrint('🔍 파싱 디버깅 - fromJson 성공(Map): $parsedData');
+            return models.ApiResponse.success(parsedData, message: message);
+          } else if (data is List) {
+            // 호환성: 서버가 data를 리스트로 반환하는 경우 fromJson이 Map을 기대하면 래핑해서 전달
+            final wrapped = <String, dynamic>{'data': data};
+            final parsedData = fromJson(wrapped);
+            debugPrint('🔍 파싱 디버깅 - fromJson 성공(List wrapped): $parsedData');
+            return models.ApiResponse.success(parsedData, message: message);
+          } else {
+            debugPrint('🔍 파싱 디버깅 - fromJson에 전달 불가한 타입: ${data.runtimeType}');
+            throw ApiException('지원하지 않는 응답 데이터 형식: ${data.runtimeType}');
+          }
         } catch (e) {
           debugPrint('🔍 파싱 디버깅 - fromJson 실패: $e');
           rethrow;
         }
       } else if (data != null) {
-        return ApiResponse.success(data as T, message: message);
+        // fromJson이 없고 원시 data를 그대로 전달해야 하는 경우
+        final T? typedData = data is T ? data : null;
+        return models.ApiResponse<T>(success: true, data: typedData, message: message, statusCode: response.statusCode);
       } else {
-        return ApiResponse.success(null as T, message: message);
+        return models.ApiResponse<T>(success: true, data: null, message: message, statusCode: response.statusCode);
       }
     } catch (e) {
       debugPrint('🔍 파싱 디버깅 - 전체 오류: $e');
@@ -444,10 +457,10 @@ class BaseApiService {
     }
 
     try {
-      final response = await post<AuthToken>(
+      final response = await post<models.AuthToken>(
         '/api/auth/refresh',
         body: {'refreshToken': _refreshToken},
-        fromJson: (json) => AuthToken.fromJson(json),
+        fromJson: (json) => models.AuthToken.fromJson(json),
       );
 
       if (response.success && response.data != null) {

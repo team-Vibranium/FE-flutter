@@ -270,7 +270,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         _user?.email ?? 'email@example.com',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                          color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -437,15 +437,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             height: 50,
             decoration: BoxDecoration(
               color: isUnlocked 
-                  ? achievement['color'].withValues(alpha: 0.2)
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                  ? achievement['color'].withOpacity(0.2)
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
               borderRadius: BorderRadius.circular(25),
             ),
             child: Icon(
               achievement['icon'],
               color: isUnlocked 
                   ? achievement['color']
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
               size: 24,
             ),
           ),
@@ -461,7 +461,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     fontWeight: FontWeight.bold,
                     color: isUnlocked 
                         ? Theme.of(context).colorScheme.onSurface
-                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -470,8 +470,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     color: isUnlocked 
-                        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
-                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.7)
+                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                   ),
                 ),
               ],
@@ -486,7 +486,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           else
             Icon(
               Icons.lock,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
               size: 20,
             ),
         ],

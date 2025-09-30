@@ -1,43 +1,62 @@
 import 'package:flutter/material.dart';
+import '../core/services/call_management_api_service.dart';
+import '../core/models/api_models.dart';
 
-class CallDetailScreen extends StatelessWidget {
+class CallDetailScreen extends StatefulWidget {
   final Map<String, dynamic> callData;
-  
+
   const CallDetailScreen({super.key, required this.callData});
 
-  // 더미 채팅 데이터
-  final List<Map<String, dynamic>> _chatMessages = const [
-    {
-      'sender': 'model',
-      'message': '일어날 시간입니다.',
-      'timestamp': '07:15:00',
-    },
-    {
-      'sender': 'user',
-      'message': '조금만 더…',
-      'timestamp': '07:15:05',
-    },
-    {
-      'sender': 'model',
-      'message': '10초 안에 응답 없으면 실패 처리합니다.',
-      'timestamp': '07:15:10',
-    },
-    {
-      'sender': 'user',
-      'message': '네, 일어날게요!',
-      'timestamp': '07:15:15',
-    },
-    {
-      'sender': 'model',
-      'message': '좋습니다! 오늘도 좋은 하루 되세요.',
-      'timestamp': '07:15:20',
-    },
-    {
-      'sender': 'user',
-      'message': '감사합니다!',
-      'timestamp': '07:15:25',
-    },
-  ];
+  @override
+  State<CallDetailScreen> createState() => _CallDetailScreenState();
+}
+
+class _CallDetailScreenState extends State<CallDetailScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Utterance> _conversation = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTranscript();
+  }
+
+  Future<void> _loadTranscript() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _conversation = [];
+    });
+    try {
+      final callId = widget.callData['id'] as int?;
+      if (callId == null) {
+        setState(() {
+          _loading = false;
+          _error = '잘못된 통화 ID입니다.';
+        });
+        return;
+      }
+      final api = CallManagementApiService();
+      final res = await api.getCall(callId);
+      if (res.success && res.data != null) {
+        setState(() {
+          _conversation = res.data!.conversation ?? [];
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _error = res.message ?? '통화 내용을 불러오지 못했습니다.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = '오류: $e';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,21 +68,49 @@ class CallDetailScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // 날짜 및 통화 정보 헤더
           _buildCallHeader(context),
-          
-          // 채팅 로그
           Expanded(
-            child: _buildChatLog(),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(child: Text(_error!))
+                    : _conversation.isEmpty
+                        ? const Center(child: Text('통화 내용이 없습니다.'))
+                        : _buildChatLog(),
           ),
         ],
       ),
     );
   }
 
+  String _calculateDuration() {
+    final callStart = widget.callData['callStart'] as DateTime?;
+    final callEnd = widget.callData['callEnd'] as DateTime?;
+
+    print('🔍 callStart: $callStart');
+    print('🔍 callEnd: $callEnd');
+
+    if (callStart == null || callEnd == null) {
+      return '알 수 없음';
+    }
+
+    final duration = callEnd.difference(callStart);
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+
+    print('🔍 duration: ${duration.inSeconds}초 (${minutes}분 ${seconds}초)');
+
+    if (minutes > 0) {
+      return '$minutes분 ${seconds}초';
+    } else {
+      return '${seconds}초';
+    }
+  }
+
   Widget _buildCallHeader(BuildContext context) {
+    final callData = widget.callData;
     final isSuccess = callData['status'] == '성공';
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -114,18 +161,10 @@ class CallDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${callData['time']} • ${callData['duration']}',
+            '${callData['time']} • ${_calculateDuration()}',
             style: TextStyle(
               color: Colors.grey[600],
               fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            callData['summary'],
-            style: TextStyle(
-              color: Colors.grey[700],
-              fontSize: 13,
             ),
           ),
         ],
@@ -136,16 +175,16 @@ class CallDetailScreen extends StatelessWidget {
   Widget _buildChatLog() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _chatMessages.length,
+      itemCount: _conversation.length,
       itemBuilder: (context, index) {
-        final message = _chatMessages[index];
-        return _buildChatBubble(context, message);
+        final u = _conversation[index];
+        return _buildChatBubble(context, u);
       },
     );
   }
 
-  Widget _buildChatBubble(BuildContext context, Map<String, dynamic> message) {
-    final isUser = message['sender'] == 'user';
+  Widget _buildChatBubble(BuildContext context, Utterance u) {
+    final isUser = u.speaker == 'user';
     
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -183,7 +222,7 @@ class CallDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    message['message'],
+                    u.text,
                     style: TextStyle(
                       color: isUser ? Colors.white : Colors.black87,
                       fontSize: 15,
@@ -191,10 +230,10 @@ class CallDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    message['timestamp'],
+                    _formatTime(u.timestamp.toIso8601String()),
                     style: TextStyle(
                       color: isUser 
-                          ? Colors.white.withValues(alpha: 0.7)
+                          ? Colors.white.withOpacity(0.7)
                           : Colors.grey[600],
                       fontSize: 11,
                     ),
@@ -223,4 +262,15 @@ class CallDetailScreen extends StatelessWidget {
     );
   }
 
+  String _formatTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      final ss = dt.second.toString().padLeft(2, '0');
+      return '$hh:$mm:$ss';
+    } catch (_) {
+      return iso;
+    }
+  }
 }

@@ -254,59 +254,57 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
 
     final alarms = ref.read(dashboardProvider.notifier).getFilteredAndSortedAlarms();
 
-    if (alarms.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.alarm_off,
-              size: 80,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 16),
-            Text(
-              '알람 없으면 텅텅…',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              '알람 추가 버튼을 눌러서 알람을 만들어보세요!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Column(
       children: [
         // 알람 타입 필터
         _buildAlarmTypeSlider(state),
 
-        // 다음 알람 요약 카드
+        // 다음 알람 요약 카드 (항상 표시)
         _buildNextAlarmSummary(alarms),
 
-        // 알람 리스트
+        // 알람 리스트 또는 빈 상태 메시지
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => ref.read(dashboardProvider.notifier).refreshData(),
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: alarms.length,
-              itemBuilder: (context, index) {
-                final alarm = alarms[index];
-                return _buildCompactAlarmCard(alarm, index, index);
-              },
-            ),
-          ),
+          child: alarms.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.alarm_off,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        '알람 없으면 텅텅…',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '알람 추가 버튼을 눌러서 알람을 만들어보세요!',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => ref.read(dashboardProvider.notifier).refreshData(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: alarms.length,
+                    itemBuilder: (context, index) {
+                      final alarm = alarms[index];
+                      return _buildCompactAlarmCard(alarm, index, index);
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -366,7 +364,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -407,7 +405,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
@@ -423,7 +421,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
@@ -461,10 +459,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
             },
             child: CircleAvatar(
               radius: 45, // 크기 줄임
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              backgroundColor: Colors.white.withOpacity(0.2),
               child: CircleAvatar(
                 radius: 40, // 크기 줄임
-                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                backgroundColor: Colors.white.withOpacity(0.9),
                 child: _getAvatarIcon('avatar_1', size: 45), // 크기 조정
               ),
             ),
@@ -539,6 +537,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
   }
 
   Widget _buildAlarmTypeSlider(DashboardState state) {
+    // 알람 타입별 개수 확인
+    final hasNormalAlarms = state.alarms.any((alarm) => alarm.type == AlarmType.normal);
+    final hasCallAlarms = state.alarms.any((alarm) => alarm.type == AlarmType.call);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -585,29 +587,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                   ),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        ref.read(dashboardProvider.notifier).setAlarmTypeFilter(1);
-                        _animationController.forward().then((_) {
-                          _animationController.reset();
-                        });
-                      },
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: state.alarmTypeFilter == 1
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '일반알람',
-                            style: TextStyle(
-                              color: state.alarmTypeFilter == 1
-                                  ? Colors.white
-                                  : Colors.grey[600],
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                      onTap: hasNormalAlarms
+                          ? () {
+                              ref.read(dashboardProvider.notifier).setAlarmTypeFilter(1);
+                              _animationController.forward().then((_) {
+                                _animationController.reset();
+                              });
+                            }
+                          : null,
+                      child: Opacity(
+                        opacity: hasNormalAlarms ? 1.0 : 0.4,
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: state.alarmTypeFilter == 1
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '일반알람',
+                              style: TextStyle(
+                                color: state.alarmTypeFilter == 1
+                                    ? Colors.white
+                                    : Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -616,29 +623,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                   ),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        ref.read(dashboardProvider.notifier).setAlarmTypeFilter(2);
-                        _animationController.forward().then((_) {
-                          _animationController.reset();
-                        });
-                      },
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: state.alarmTypeFilter == 2
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '전화알람',
-                            style: TextStyle(
-                              color: state.alarmTypeFilter == 2
-                                  ? Colors.white
-                                  : Colors.grey[600],
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                      onTap: hasCallAlarms
+                          ? () {
+                              ref.read(dashboardProvider.notifier).setAlarmTypeFilter(2);
+                              _animationController.forward().then((_) {
+                                _animationController.reset();
+                              });
+                            }
+                          : null,
+                      child: Opacity(
+                        opacity: hasCallAlarms ? 1.0 : 0.4,
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: state.alarmTypeFilter == 2
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '전화알람',
+                              style: TextStyle(
+                                color: state.alarmTypeFilter == 2
+                                    ? Colors.white
+                                    : Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),

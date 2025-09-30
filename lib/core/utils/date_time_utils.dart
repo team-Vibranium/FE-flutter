@@ -71,18 +71,18 @@ class DateTimeUtils {
     }
   }
 
-  /// UTC 시간이 올바른지 검증 (2025년이면 잘못된 것으로 간주)
+  /// UTC 시간이 올바른지 검증
   static bool isValidUtcTime(DateTime dateTime) {
-    // 2025년 이후의 시간은 잘못된 것으로 간주
-    if (dateTime.year > 2024) {
+    // 2030년 이후의 시간은 잘못된 것으로 간주
+    if (dateTime.year > 2030) {
       return false;
     }
-    
+
     // 2020년 이전의 시간도 잘못된 것으로 간주
     if (dateTime.year < 2020) {
       return false;
     }
-    
+
     return true;
   }
 

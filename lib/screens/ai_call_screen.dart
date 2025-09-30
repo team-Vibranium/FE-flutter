@@ -292,9 +292,9 @@ class _AICallScreenState extends State<AICallScreen>
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: statusColor.withValues(alpha: 0.2),
+          color: statusColor.withOpacity(0.2),
           borderRadius: AppRadius.xl,
-          border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+          border: Border.all(color: statusColor.withOpacity(0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -348,7 +348,7 @@ class _AICallScreenState extends State<AICallScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _getAvatarGradientColors().first.withValues(alpha: 0.4),
+                        color: _getAvatarGradientColors().first.withOpacity(0.4),
                         blurRadius: 30,
                         spreadRadius: 10,
                       ),
@@ -398,7 +398,7 @@ class _AICallScreenState extends State<AICallScreen>
           size: const Size(300, 300),
           painter: WavePainter(
             animation: _waveAnimation.value,
-            color: _getAvatarGradientColors().first.withValues(alpha: 0.3),
+            color: _getAvatarGradientColors().first.withOpacity(0.3),
           ),
         );
       },
@@ -437,9 +437,9 @@ class _AICallScreenState extends State<AICallScreen>
       margin: const EdgeInsets.only(bottom: AppSpacing.lg),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: Colors.white.withOpacity(0.1),
         borderRadius: AppRadius.md,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: SingleChildScrollView(
         child: Text(
@@ -464,7 +464,7 @@ class _AICallScreenState extends State<AICallScreen>
           icon: _callService.isMuted ? Icons.mic_off : Icons.mic,
           backgroundColor: _callService.isMuted 
               ? Colors.red 
-              : Colors.white.withValues(alpha: 0.2),
+              : Colors.white.withOpacity(0.2),
           iconColor: Colors.white,
           size: 60,
           onPressed: _toggleMute,
@@ -484,7 +484,7 @@ class _AICallScreenState extends State<AICallScreen>
           icon: _callService.isSpeakerOn ? Icons.volume_up : Icons.volume_down,
           backgroundColor: _callService.isSpeakerOn
               ? Colors.blue
-              : Colors.white.withValues(alpha: 0.2),
+              : Colors.white.withOpacity(0.2),
           iconColor: Colors.white,
           size: 60,
           onPressed: _toggleSpeaker,

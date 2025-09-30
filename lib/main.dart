@@ -193,7 +193,7 @@ class AuthWrapper extends ConsumerWidget {
                 'AI와 함께하는 스마트 알람',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white.withValues(alpha: 0.8),
+                  color: Colors.white.withOpacity(0.8),
                 ),
               ),
               const SizedBox(height: 48),

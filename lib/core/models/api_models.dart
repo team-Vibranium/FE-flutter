@@ -287,12 +287,12 @@ class CallLog {
     return CallLog(
       id: json['id'] as int,
       user: json['user'] != null ? User.fromJson(json['user']) : null,
-      callStart: DateTimeUtils.parseUtcToLocalSafe(json['callStart'] as String),
-      callEnd: json['callEnd'] != null ? DateTimeUtils.parseUtcToLocalSafe(json['callEnd'] as String) : null,
+      callStart: DateTime.parse(json['callStart'] as String),
+      callEnd: json['callEnd'] != null ? DateTime.parse(json['callEnd'] as String).subtract(const Duration(hours: 9)) : null,
       result: json['result'] as String,
       snoozeCount: json['snoozeCount'] as int,
       conversationData: json['conversationData'] as String?,
-      createdAt: DateTimeUtils.parseUtcToLocalSafe(json['createdAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String),
       successful: json['successful'] as bool,
       conversationList: json['conversationList'] != null
           ? (json['conversationList'] as List)
@@ -339,10 +339,14 @@ class Utterance {
   }
 
   Map<String, dynamic> toJson() {
+    // ISO 8601 문자열 형식으로 전송 (백엔드 Jackson이 파싱 가능)
+    final isoString = timestamp.toIso8601String();
+    final withoutMillis = isoString.split('.').first; // yyyy-MM-ddTHH:mm:ss
+
     return {
       'speaker': speaker,
       'text': text,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': withoutMillis,
     };
   }
 }
