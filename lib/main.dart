@@ -6,6 +6,8 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/alarm_ring_screen.dart';
+import 'screens/avatar_customize_screen.dart';
+import 'screens/stats_screen.dart';
 import 'screens/login_screen.dart';
 import 'core/environment/environment.dart';
 import 'core/theme/app_theme.dart';
@@ -151,6 +153,8 @@ class AningCallApp extends ConsumerWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/avatar_customize': (context) => const AvatarCustomizeScreen(initialPoints: 0, initialAvatar: ''),
+        '/stats': (context) => const StatsScreen(),
         '/alarm_ring': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           return AlarmRingScreen(

@@ -791,12 +791,11 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
             Row(
               children: [
                 Expanded(
-                  flex: 4,
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedVoice,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     ),
                     items: _voices.entries.map((entry) {
                       return DropdownMenuItem(
@@ -804,6 +803,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                         child: Text(
                           entry.value,
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       );
                     }).toList(),
@@ -814,20 +814,21 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 IconButton(
                   onPressed: _toggleVoicePlayback,
                   icon: Icon(
                     _isVoicePlaying ? Icons.pause : Icons.play_arrow,
                     color: Theme.of(context).colorScheme.primary,
+                    size: 20,
                   ),
                   style: IconButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(4),
                   ),
                   constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
                 ),
               ],
@@ -981,7 +982,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
           soundFile = 'sounds/전통적인 알람/무난한 소리.mp3';
         }
         
-        await _audioPlayer.play(AssetSource('assets/$soundFile'));
+        await _audioPlayer.play(AssetSource(soundFile));
         
         setState(() {
           _isSoundPlaying = true;

@@ -63,8 +63,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           double successRate = 0.0;
           if (overviewResp.success && overviewResp.data != null) {
             final o = overviewResp.data as StatisticsOverview;
-            print('마이페이지 통계 개요 - successRate: ${o.successRate}, totalAlarms: ${o.totalAlarms}');
-            successRate = o.totalAlarms > 0 ? o.successRate : 0.0; // 0.0~1.0
+            successRate = o.totalAlarms > 0 ? o.successRate : 0.0; // 이미 퍼센트 값
           }
 
           int consecutiveDays = 0;
@@ -85,6 +84,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _statisticsSummary = {
             'successRate': successRate,
             'consecutiveDays': consecutiveDays,
+            'totalAlarms': overviewResp.success && overviewResp.data != null 
+                ? (overviewResp.data as StatisticsOverview).totalAlarms 
+                : 0,
           };
           
           // 업적 데이터 생성 (실제 데이터 기반)
@@ -108,6 +110,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final totalPoints = _pointSummary?['totalPoints'] ?? 0;
     final successRate = _statisticsSummary?['successRate'] ?? 0.0;
     final consecutiveDays = _statisticsSummary?['consecutiveDays'] ?? 0;
+    final totalAlarms = _statisticsSummary?['totalAlarms'] ?? 0;
     
     return [
       {
@@ -127,7 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       {
         'title': '성공률 마스터',
         'description': '알람 성공률 90% 이상을 달성했습니다',
-        'isUnlocked': successRate >= 0.9,
+        'isUnlocked': totalAlarms >= 10 && successRate >= 90.0,
         'icon': Icons.emoji_events,
         'color': Colors.amber,
       },
@@ -295,13 +298,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pushNamed(context, '/avatar_customize'),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'nickname':
+                        _showNicknameChangeDialog();
+                        break;
+                      case 'password':
+                        _showPasswordChangeDialog();
+                        break;
+                      case 'avatar':
+                        Navigator.pushNamed(context, '/avatar_customize');
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'nickname',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20),
+                          SizedBox(width: 8),
+                          Text('닉네임 수정'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'password',
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock, size: 20),
+                          SizedBox(width: 8),
+                          Text('비밀번호 수정'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'avatar',
+                      child: Row(
+                        children: [
+                          Icon(Icons.face, size: 20),
+                          SizedBox(width: 8),
+                          Text('아바타 변경'),
+                        ],
+                      ),
+                    ),
+                  ],
                   icon: Icon(
                     Icons.edit,
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
-                  tooltip: '아바타 꾸미기',
+                  tooltip: '프로필 수정',
                 ),
               ],
             ),
@@ -364,7 +411,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    // 통계 화면으로 이동
+                    Navigator.pushNamed(context, '/stats');
                   },
                   child: const Text('더보기'),
                 ),
@@ -380,7 +427,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: _buildStatItem('연속일', '${_statisticsSummary?['consecutiveDays'] ?? 0}일', Icons.local_fire_department, Colors.orange),
                 ),
                 Expanded(
-                  child: _buildStatItem('성공률', '${((_statisticsSummary?['successRate'] ?? 0.0) * 100).round()}%', Icons.trending_up, Colors.green),
+                  child: _buildStatItem('성공률', '${(_statisticsSummary?['successRate'] ?? 0.0).round()}%', Icons.trending_up, Colors.green),
                 ),
               ],
             ),
@@ -663,5 +710,187 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  void _showNicknameChangeDialog() {
+    final TextEditingController nicknameController = TextEditingController(text: _user?.nickname ?? '');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('닉네임 수정'),
+        content: TextField(
+          controller: nicknameController,
+          decoration: const InputDecoration(
+            labelText: '새 닉네임',
+            border: OutlineInputBorder(),
+          ),
+          maxLength: 20,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newNickname = nicknameController.text.trim();
+              if (newNickname.isNotEmpty && newNickname != _user?.nickname) {
+                await _changeNickname(newNickname);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('수정'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPasswordChangeDialog() {
+    final TextEditingController currentPasswordController = TextEditingController();
+    final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('비밀번호 수정'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPasswordController,
+              decoration: const InputDecoration(
+                labelText: '현재 비밀번호',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: newPasswordController,
+              decoration: const InputDecoration(
+                labelText: '새 비밀번호',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: confirmPasswordController,
+              decoration: const InputDecoration(
+                labelText: '새 비밀번호 확인',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final currentPassword = currentPasswordController.text.trim();
+              final newPassword = newPasswordController.text.trim();
+              final confirmPassword = confirmPasswordController.text.trim();
+              
+              if (newPassword.isNotEmpty && newPassword == confirmPassword) {
+                await _changePassword(currentPassword, newPassword);
+                Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('비밀번호가 일치하지 않습니다.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('수정'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changeNickname(String newNickname) async {
+    try {
+      final request = NicknameChangeRequest(newNickname: newNickname);
+      final response = await ApiService().user.changeNickname(request);
+      if (response.success) {
+        setState(() {
+          if (response.data != null) {
+            _user = response.data as User;
+          } else if (_user != null) {
+            // 응답에 데이터가 없으면 닉네임만 업데이트하여 임시 반영
+            _user = User(
+              id: _user!.id,
+              email: _user!.email,
+              nickname: newNickname,
+              points: _user!.points,
+              selectedAvatar: _user!.selectedAvatar,
+              createdAt: _user!.createdAt,
+            );
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('닉네임이 변경되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('닉네임 변경 실패: ${response.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('닉네임 변경 오류: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _changePassword(String currentPassword, String newPassword) async {
+    try {
+      final request = PasswordChangeRequest(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        confirmPassword: newPassword,
+      );
+      final response = await ApiService().user.changePassword(request);
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('비밀번호가 변경되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('비밀번호 변경 실패: ${response.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('비밀번호 변경 오류: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

@@ -84,7 +84,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               final monthlyData = results[2].data as PeriodStatistics;
               print('월간 통계 - successRate: ${monthlyData.successRate}, totalAlarms: ${monthlyData.totalAlarms}');
               _monthlyStats = {
-                'successRate': monthlyData.totalAlarms > 0 ? (monthlyData.successRate * 100).round() : 0,
+                'successRate': monthlyData.totalAlarms > 0 ? monthlyData.successRate.round() : 0,
                 'consecutiveDays': null, // API에서 제공되지 않음
                 'totalPointsEarned': monthlyData.totalPoints,
               };
@@ -100,7 +100,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               print('최근 30일 통계 - successRate: ${last30Data.successRate}, totalAlarms: ${last30Data.totalAlarms}');
               _last30Stats = {
                 'totalPointsEarned': last30Data.totalPoints,
-                'successRate': last30Data.totalAlarms > 0 ? (last30Data.successRate * 100).round() : 0,
+                'successRate': last30Data.totalAlarms > 0 ? last30Data.successRate.round() : 0,
               };
             } else {
               _last30Stats = {'totalPointsEarned': 0, 'successRate': 0};
@@ -170,7 +170,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         if (resp.success && resp.data != null) {
           final monthlyData = resp.data as PeriodStatistics;
           _monthlyStats = {
-            'successRate': (monthlyData.successRate * 100).round(),
+            'successRate': monthlyData.totalAlarms > 0 ? monthlyData.successRate.round() : 0,
             'consecutiveDays': null,
             'totalPointsEarned': monthlyData.totalPoints,
             'totalAlarms': monthlyData.totalAlarms,

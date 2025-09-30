@@ -202,8 +202,7 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
       try {
         // 실제 음성 파일 재생
         final music = _musicByGenre[genre]!.firstWhere((m) => m['name'] == musicName);
-        final relativePath = music['file'] as String;
-        final filePath = 'assets/$relativePath';
+        final filePath = music['file'] as String;
         await _audioPlayer.play(AssetSource(filePath));
         
         // 재생 완료 시 상태 업데이트
