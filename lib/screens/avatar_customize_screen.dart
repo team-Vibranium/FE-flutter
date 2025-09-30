@@ -21,16 +21,18 @@ class AvatarCustomizeScreen extends StatefulWidget {
 class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
   late int _userPoints;
   late String _selectedAvatar;
+  int _consumptionPoints = 0; // 구매에 사용할 소비 포인트
+  Set<String> _ownedAvatarIds = <String>{'default'}; // 로컬 캐시 보유 목록
 
   @override
   void initState() {
     super.initState();
     _userPoints = widget.initialPoints;
     _selectedAvatar = widget.initialAvatar;
-    _loadLocalAvatarCache();
+    _initData();
   }
 
-  // 아바타 데이터 (더미)
+  // 아바타 데이터 (로컬 프리셋: 100~800 구간 가격 포함)
   final List<Map<String, dynamic>> _avatars = [
     {
       'id': 'default',
@@ -67,8 +69,8 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
     {
       'id': 'heart',
       'name': '하트',
-      'price': 150,
-      'isOwned': true,
+      'price': 400,
+      'isOwned': false,
       'icon': Icons.favorite,
       'color': Colors.red,
     },
@@ -87,14 +89,6 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
       'isOwned': false,
       'icon': Icons.workspace_premium,
       'color': Colors.amber,
-    },
-    {
-      'id': 'rainbow',
-      'name': '무지개',
-      'price': 1000,
-      'isOwned': false,
-      'icon': Icons.auto_awesome,
-      'color': Colors.purple,
     },
   ];
 
@@ -153,7 +147,8 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
               itemCount: _avatars.length,
               itemBuilder: (context, index) {
                 final avatar = _avatars[index];
-                return _buildAvatarCard(avatar);
+                final isOwned = _ownedAvatarIds.contains(avatar['id']);
+                return _buildAvatarCard({...avatar, 'isOwned': isOwned});
               },
             ),
           ),
@@ -162,16 +157,27 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
     );
   }
 
-  Future<void> _loadLocalAvatarCache() async {
+  Future<void> _initData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // 선택된 아바타 로드
       final cached = prefs.getString('selectedAvatar');
+      // 보유 목록 로드
+      final owned = prefs.getStringList('ownedAvatars') ?? <String>[];
+      // 포인트/등급 잔액 로드 (소비 포인트 사용)
+      final pointResp = await ApiService().points.getPointBalance();
       if (!mounted) return;
-      if (cached != null && cached.isNotEmpty) {
-        setState(() {
+      setState(() {
+        if (cached != null && cached.isNotEmpty) {
           _selectedAvatar = cached;
-        });
-      }
+        }
+        _ownedAvatarIds = {'default', ...owned};
+        if (pointResp.success && pointResp.data != null) {
+          final data = pointResp.data!;
+          _consumptionPoints = (data['consumptionPoints'] as int?) ?? 0;
+          _userPoints = (data['totalPoints'] as int?) ?? _userPoints;
+        }
+      });
     } catch (_) {}
   }
 
@@ -242,6 +248,8 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
 
   Widget _buildAvatarCard(Map<String, dynamic> avatar) {
     final isSelected = avatar['id'] == _selectedAvatar;
+    final bool isOwned = (avatar['isOwned'] as bool?) ?? false;
+    final int price = avatar['price'] as int;
 
     return Card(
       elevation: isSelected ? 8 : 3,
@@ -255,7 +263,14 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
             : BorderSide.none,
       ),
       child: InkWell(
-        onTap: () => _applyAvatar(avatar['id'] as String),
+        onTap: () async {
+          final id = avatar['id'] as String;
+          if (isOwned || price == 0) {
+            await _applyAvatar(id);
+          } else {
+            _confirmPurchase(id, price, avatar['name'] as String);
+          }
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -296,20 +311,38 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
               
               const SizedBox(height: 8),
               
-              // 적용 라벨
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.green[100] : Colors.blueGrey[50],
-                  borderRadius: BorderRadius.circular(12),
+              // 가격/상태
+              Text(
+                price == 0 ? '무료' : '$price 포인트',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[700],
                 ),
-                child: Text(
-                  isSelected ? '선택됨' : '탭하여 적용',
-                  style: TextStyle(
-                    color: isSelected ? Colors.green : Colors.blueGrey[700],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 32,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final id = avatar['id'] as String;
+                    if (isOwned || price == 0) {
+                      await _applyAvatar(id);
+                    } else {
+                      _confirmPurchase(id, price, avatar['name'] as String);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isOwned || isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.green,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                  child: Text(
+                    isOwned || price == 0 ? (isSelected ? '선택됨' : '적용') : '구매',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ),
@@ -347,6 +380,70 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _confirmPurchase(String avatarId, int price, String name) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('아바타 구매'),
+        content: Text('"$name" 아바타를 $price 포인트로 구매하시겠습니까?\n(보유 소비 포인트: $_consumptionPoints)'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _purchaseAvatar(avatarId, price);
+            },
+            child: const Text('구매'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _purchaseAvatar(String avatarId, int price) async {
+    try {
+      // 잔액 최신화
+      final balanceResp = await ApiService().points.getPointBalance();
+      int consumption = _consumptionPoints;
+      if (balanceResp.success && balanceResp.data != null) {
+        consumption = (balanceResp.data!['consumptionPoints'] as int?) ?? 0;
+      }
+      if (consumption < price) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('포인트가 부족합니다'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      // 서버에 구매 기록(소비 포인트 차감) 저장
+      final spendResp = await ApiService().points.spendPointsForSkin(skinId: avatarId, price: price);
+      if (!spendResp.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('구매 실패: ${spendResp.message ?? '알 수 없는 오류'}'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      // 로컬 보유 처리 및 포인트 차감 반영
+      setState(() {
+        _ownedAvatarIds.add(avatarId);
+        _consumptionPoints = consumption - price;
+        _userPoints = (_userPoints - price).clamp(0, 1 << 31);
+      });
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('ownedAvatars', _ownedAvatarIds.toList());
+      } catch (_) {}
+
+      // 구매 후 즉시 적용
+      await _applyAvatar(avatarId);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('구매 오류: $e'), backgroundColor: Colors.red),
       );
     }
   }

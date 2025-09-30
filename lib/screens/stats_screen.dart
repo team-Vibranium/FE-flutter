@@ -83,11 +83,22 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             if (results[2].success && results[2].data != null) {
               final monthlyData = results[2].data as PeriodStatistics;
               print('월간 통계 - successRate: ${monthlyData.successRate}, totalAlarms: ${monthlyData.totalAlarms}');
+              // 누적 포인트는 "획득만" 합산
+              final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
+              final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1).subtract(const Duration(days: 1));
               _monthlyStats = {
                 'successRate': monthlyData.totalAlarms > 0 ? monthlyData.successRate.round() : 0,
                 'consecutiveDays': null, // API에서 제공되지 않음
-                'totalPointsEarned': monthlyData.totalPoints,
+                'totalPointsEarned': 0, // 아래에서 비동기 갱신
               };
+              _sumEarnedPoints(firstDay, lastDay).then((earned) {
+                if (!mounted) return;
+                setState(() {
+                  if (_monthlyStats != null) {
+                    _monthlyStats!['totalPointsEarned'] = earned;
+                  }
+                });
+              });
             } else {
               _monthlyStats = null; // 데이터 없음
             }
@@ -98,10 +109,20 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             if (results[4].success && results[4].data != null) {
               final last30Data = results[4].data as PeriodStatistics;
               print('최근 30일 통계 - successRate: ${last30Data.successRate}, totalAlarms: ${last30Data.totalAlarms}');
+              final end = DateTime.now();
+              final start = end.subtract(const Duration(days: 29));
               _last30Stats = {
-                'totalPointsEarned': last30Data.totalPoints,
+                'totalPointsEarned': 0, // 아래에서 비동기 갱신
                 'successRate': last30Data.totalAlarms > 0 ? last30Data.successRate.round() : 0,
               };
+              _sumEarnedPoints(DateTime(start.year, start.month, start.day), DateTime(end.year, end.month, end.day)).then((earned) {
+                if (!mounted) return;
+                setState(() {
+                  if (_last30Stats != null) {
+                    _last30Stats!['totalPointsEarned'] = earned;
+                  }
+                });
+              });
             } else {
               _last30Stats = {'totalPointsEarned': 0, 'successRate': 0};
             }
@@ -981,17 +1002,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
 
   Future<CalendarStatistics?> _loadCalendarDataFor(DateTime date) async {
     try {
+      print('캘린더 데이터 로딩: ${date.year}-${date.month}');
       final apiService = ApiService();
       final response = await apiService.statistics.getCalendarStatistics(
         year: date.year,
         month: date.month,
       );
       
+      print('캘린더 API 응답: success=${response.success}');
       if (response.success && response.data != null) {
-        return response.data as CalendarStatistics;
+        final data = response.data as CalendarStatistics;
+        print('캘린더 데이터: ${data.days.length}개 일자');
+        for (final d in data.days) {
+          print('${d.day}일: 알람 ${d.alarmCount}개, 성공 ${d.successCount}개');
+        }
+        return data;
       }
       return null;
     } catch (e) {
+      print('캘린더 데이터 로딩 오류: $e');
       return null;
     }
   }
@@ -1146,42 +1175,86 @@ class _SuccessDonutState extends State<SuccessDonut> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final size = 160.0;
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
         children: [
-          CustomPaint(
-            size: Size.square(size),
-            painter: _DonutPainter(
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              foregroundColor: widget.ringColor,
-              percent: (widget.percent.clamp(0.0, 1.0)) * _animation.value,
-              strokeWidth: 16,
+        SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: Size.square(size),
+                painter: _DonutPainter(
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  foregroundColor: widget.ringColor,
+                  percent: (widget.percent.clamp(0.0, 1.0)) * _animation.value,
+                  strokeWidth: 16,
+                ),
+              ),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+                      '${widget.total}',
+            style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
             ),
           ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _legendDot(Theme.of(context).colorScheme.primary, '총 ${widget.total}'),
-              const SizedBox(height: 6),
-              _legendDot(Colors.green, '성공 ${widget.success}'),
-              const SizedBox(height: 6),
-              _legendDot(Colors.red, '실패 ${widget.fail}'),
-            ],
+          Text(
+                      '총 알람',
+            style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _legendDot(Colors.green, '성공 ${widget.success}'),
+            _legendDot(Colors.red, '실패 ${widget.fail}'),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _legendDot(Color color, String text) {
     return Row(
-        children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8, 
+          height: 8, 
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)
+        ),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(
+          text, 
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
@@ -1245,7 +1318,7 @@ Color _successGradient(double rate, {bool isDark = false}) {
   }
 }
 
-// 하루 획득 포인트 합계 조회
+  // 하루 획득 포인트 합계 조회
 Future<int> _getEarnedPointsOnDate(DateTime date) async {
   try {
     final api = ApiService();
@@ -1261,6 +1334,35 @@ Future<int> _getEarnedPointsOnDate(DateTime date) async {
     }
     return sum;
   } catch (_) {
+    return 0;
+  }
+}
+
+// 기간별 획득 포인트만 합산 (차감 제외)
+Future<int> _sumEarnedPoints(DateTime start, DateTime end) async {
+  try {
+    print('포인트 합계 계산: ${start.toIso8601String()} ~ ${end.toIso8601String()}');
+    final api = ApiService();
+    final resp = await api.points.getPointTransaction(
+      startDate: start,
+      endDate: end,
+    );
+    print('포인트 거래 API 응답: success=${resp.success}');
+    if (!resp.success || resp.data == null) {
+      print('포인트 거래 데이터 없음');
+      return 0;
+    }
+    final list = resp.data as List<PointTransaction>;
+    print('포인트 거래 ${list.length}개 발견');
+    int sum = 0;
+    for (final tx in list) {
+      print('거래: ${tx.type} ${tx.amount}포인트 (${tx.description})');
+      if (tx.amount > 0) sum += tx.amount; // 획득만 합산
+    }
+    print('총 획득 포인트: $sum');
+    return sum;
+  } catch (e) {
+    print('포인트 합계 계산 오류: $e');
     return 0;
   }
 }

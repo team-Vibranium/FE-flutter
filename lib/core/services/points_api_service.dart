@@ -45,7 +45,16 @@ class PointsApiService {
         '/api/points/history',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
         fromJson: (json) {
-          final List<dynamic> historyList = json['history'] ?? json['data'] ?? [];
+          // 응답 형태가 { data: { history: [...] }} 또는 { data: [...] } 또는 { history: [...] } 등 다양할 수 있어 안전하게 파싱
+          dynamic container = json['data'] ?? json;
+          List<dynamic> historyList;
+          if (container is Map<String, dynamic>) {
+            historyList = (container['history'] ?? container['items'] ?? container['list'] ?? []) as List<dynamic>;
+          } else if (container is List) {
+            historyList = container;
+          } else {
+            historyList = (json['history'] ?? []) as List<dynamic>;
+          }
           return historyList
               .map((item) => PointTransaction.fromJson(item as Map<String, dynamic>))
               .toList();
@@ -310,11 +319,19 @@ class PointsApiService {
       final response = await getPointSummary();
       if (response.success && response.data != null) {
         final summary = response.data!;
+        print('포인트 잔액 디버그:');
+        print('consumptionPoints: ${summary.consumptionPoints}');
+        print('gradePoints: ${summary.gradePoints}');
+        print('totalPoints: ${summary.totalPoints}');
+        print('earnedToday: ${summary.earnedToday}');
+        print('spentToday: ${summary.spentToday}');
         return ApiResponse.success({
-          'consumptionPoints': 0, // PointSummary에는 이 속성이 없으므로 0으로 설정
-          'gradePoints': 0, // PointSummary에는 이 속성이 없으므로 0으로 설정
+          'consumptionPoints': summary.consumptionPoints,
+          'gradePoints': summary.gradePoints,
           'totalPoints': summary.totalPoints,
-          'currentGrade': 'BRONZE', // PointSummary에는 등급 정보가 없으므로 기본값
+          'currentGrade': summary.currentGrade,
+          'earnedToday': summary.earnedToday,
+          'spentToday': summary.spentToday,
         });
       }
       return ApiResponse.error('포인트 잔액 조회 실패');

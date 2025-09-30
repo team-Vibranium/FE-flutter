@@ -791,11 +791,13 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
             Row(
               children: [
                 Expanded(
+                  flex: 3,
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedVoice,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      isDense: true,
                     ),
                     items: _voices.entries.map((entry) {
                       return DropdownMenuItem(
@@ -804,6 +806,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                           entry.value,
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
+                          style: const TextStyle(fontSize: 12),
                         ),
                       );
                     }).toList(),
@@ -814,21 +817,21 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: _toggleVoicePlayback,
-                  icon: Icon(
-                    _isVoicePlaying ? Icons.pause : Icons.play_arrow,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 20,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    padding: const EdgeInsets.all(4),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                const SizedBox(width: 2),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: IconButton(
+                    onPressed: _toggleVoicePlayback,
+                    icon: Icon(
+                      _isVoicePlaying ? Icons.pause : Icons.play_arrow,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 16,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      padding: EdgeInsets.zero,
+                    ),
                   ),
                 ),
               ],
