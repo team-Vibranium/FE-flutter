@@ -495,7 +495,7 @@ class _AICallScreenState extends State<AICallScreen>
 
   /// 알람 해제 버튼
   Widget _buildDismissAlarmButton() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: _requestAlarmDismissal,

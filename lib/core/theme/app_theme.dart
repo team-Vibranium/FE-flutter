@@ -21,7 +21,7 @@ class AppTheme {
       error: AppColors.errorColor,
       surface: AppColors.surfaceColor,
       onSurface: AppColors.onSurfaceColor,
-      surfaceVariant: AppColors.surfaceVariantColor,
+      surfaceContainerHighest: AppColors.surfaceVariantColor,
       onSurfaceVariant: AppColors.onSurfaceVariantColor,
       outline: AppColors.outlineColor,
       outlineVariant: AppColors.outlineVariantColor,
@@ -100,16 +100,12 @@ class AppTheme {
       tertiary: AppColors.enhancedWarning,          // Warning Amber
       onTertiary: Colors.white,
       tertiaryContainer: AppColors.enhancedInfo,    // Info Blue
-      onTertiaryContainer: Colors.white,
-      
-      // Background Colors
-      background: AppColors.enhancedDarkBackground,  // 완전한 검은색 배경
-      onBackground: AppColors.enhancedDarkOnSurface, // 메인 텍스트
+      onTertiaryContainer: Colors.white, // 메인 텍스트
       
       // Surface Colors
       surface: AppColors.enhancedDarkSurface,        // 카드, 패널 배경
       onSurface: AppColors.enhancedDarkOnSurface,    // 메인 텍스트
-      surfaceVariant: AppColors.enhancedDarkSurfaceVariant, // 입력 필드, 비활성 버튼
+      surfaceContainerHighest: AppColors.enhancedDarkSurfaceVariant, // 입력 필드, 비활성 버튼
       onSurfaceVariant: AppColors.enhancedDarkOnSurfaceVariant, // 보조 텍스트
       
       // Error Colors
@@ -152,11 +148,11 @@ class AppTheme {
         ),
         elevation: AppElevation.level1,
       ).copyWith(
-        overlayColor: MaterialStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(MaterialState.hovered)) {
+        overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.hovered)) {
             return AppColors.enhancedPrimaryHover;
           }
-          if (states.contains(MaterialState.pressed)) {
+          if (states.contains(WidgetState.pressed)) {
             return AppColors.enhancedPrimaryActive;
           }
           return null;
@@ -177,14 +173,14 @@ class AppTheme {
       ),
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return Colors.white;
         }
         return AppColors.enhancedDarkOnSurfaceVariant;
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return AppColors.enhancedPrimary;
         }
         return AppColors.enhancedDarkSurfaceVariant;

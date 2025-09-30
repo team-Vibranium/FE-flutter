@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AvatarCustomizeScreen extends StatefulWidget {
   final int initialPoints;
@@ -25,6 +27,7 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
     super.initState();
     _userPoints = widget.initialPoints;
     _selectedAvatar = widget.initialAvatar;
+    _loadLocalAvatarCache();
   }
 
   // 아바타 데이터 (더미)
@@ -159,6 +162,19 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
     );
   }
 
+  Future<void> _loadLocalAvatarCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('selectedAvatar');
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _selectedAvatar = cached;
+        });
+      }
+    } catch (_) {}
+  }
+
   Widget _buildCurrentAvatarPreview() {
     final currentAvatar = _avatars.firstWhere(
       (avatar) => avatar['id'] == _selectedAvatar,
@@ -226,9 +242,6 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
 
   Widget _buildAvatarCard(Map<String, dynamic> avatar) {
     final isSelected = avatar['id'] == _selectedAvatar;
-    final isOwned = avatar['isOwned'] as bool;
-    final price = avatar['price'] as int;
-    final canAfford = _userPoints >= price;
 
     return Card(
       elevation: isSelected ? 8 : 3,
@@ -242,7 +255,7 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
             : BorderSide.none,
       ),
       child: InkWell(
-        onTap: () => _handleAvatarTap(avatar),
+        onTap: () => _applyAvatar(avatar['id'] as String),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -283,43 +296,23 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
               
               const SizedBox(height: 8),
               
-              // 가격 또는 상태
-              if (isOwned)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    '보유중',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                )
-              else
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.monetization_on,
-                      size: 16,
-                      color: canAfford ? Colors.orange : Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$price',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: canAfford ? Colors.orange : Colors.grey,
-                      ),
-                    ),
-                  ],
+              // 적용 라벨
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.green[100] : Colors.blueGrey[50],
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: Text(
+                  isSelected ? '선택됨' : '탭하여 적용',
+                  style: TextStyle(
+                    color: isSelected ? Colors.green : Colors.blueGrey[700],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -327,90 +320,36 @@ class _AvatarCustomizeScreenState extends State<AvatarCustomizeScreen> {
     );
   }
 
-  void _handleAvatarTap(Map<String, dynamic> avatar) {
-    final isOwned = avatar['isOwned'] as bool;
-    final price = avatar['price'] as int;
-    final canAfford = _userPoints >= price;
-
-    if (isOwned) {
-      // 이미 보유한 아바타인 경우 선택
-      _selectAvatar(avatar['id']);
-    } else if (canAfford) {
-      // 구매 가능한 경우 구매 확인 다이얼로그 표시
-      _showPurchaseDialog(avatar);
-    } else {
-      // 포인트가 부족한 경우
-      _showInsufficientPointsDialog(price);
+  Future<void> _applyAvatar(String avatarId) async {
+    try {
+      final api = ApiService();
+      final resp = await api.user.updateMyInfo({'selectedAvatar': avatarId});
+      if (!mounted) return;
+      if (resp.success == true) {
+        setState(() {
+          _selectedAvatar = avatarId;
+        });
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('selectedAvatar', avatarId);
+        } catch (_) {}
+        widget.onAvatarChanged?.call(_userPoints, _selectedAvatar);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('아바타가 적용되었습니다'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, avatarId);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('아바타 적용 실패'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
-  void _showPurchaseDialog(Map<String, dynamic> avatar) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('아바타 구매'),
-        content: Text(
-          '${avatar['name']}을(를) ${avatar['price']}포인트로 구매하시겠습니까?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _purchaseAvatar(avatar);
-              Navigator.pop(context);
-            },
-            child: const Text('구매'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInsufficientPointsDialog(int price) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('포인트 부족'),
-        content: Text(
-          '포인트가 부족합니다.\n필요 포인트: $price\n보유 포인트: $_userPoints',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _purchaseAvatar(Map<String, dynamic> avatar) {
-    setState(() {
-      _userPoints -= avatar['price'] as int;
-      _avatars.firstWhere((a) => a['id'] == avatar['id'])['isOwned'] = true;
-      _selectedAvatar = avatar['id'];
-    });
-
-    // 콜백으로 포인트와 아바타 변경사항 전달
-    widget.onAvatarChanged?.call(_userPoints, _selectedAvatar);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${avatar['name']}을(를) 구매했습니다!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  void _selectAvatar(String avatarId) {
-    setState(() {
-      _selectedAvatar = avatarId;
-    });
-    
-    // 콜백으로 아바타 변경사항 전달
-    widget.onAvatarChanged?.call(_userPoints, _selectedAvatar);
-  }
+  // 구매/포인트 로직 제거 (서버는 현재 아바타만 저장)
 }

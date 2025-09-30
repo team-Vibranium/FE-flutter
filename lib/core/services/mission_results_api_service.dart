@@ -156,7 +156,7 @@ class MissionResultsApiService {
                     .where((r) => r.score != null)
                     .map((r) => r.score!)
                     .fold<double>(0, (sum, score) => sum + score) / 
-                    (typeMissions.where((r) => r.score != null).length > 0 
+                    (typeMissions.where((r) => r.score != null).isNotEmpty 
                         ? typeMissions.where((r) => r.score != null).length 
                         : 1),
               };

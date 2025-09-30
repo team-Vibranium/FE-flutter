@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../core/services/api_service.dart';
 import '../core/models/api_models.dart';
 
@@ -15,7 +16,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   
   // 필터 상태
   String _selectedFilter = 'all'; // all, plus, minus
-  String _selectedPeriod = '30days'; // 7days, 30days, 90days
+  // String _selectedPeriod = '30days'; // 7days, 30days, 90days (미사용)
+
+  // 캘린더 상태
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
 
   // API 데이터 상태
   bool _isLoading = true;
@@ -23,15 +28,17 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   
   // API에서 가져온 데이터 (임시로 Map 사용)
   Map<String, dynamic>? _pointSummary;
-  Map<String, dynamic>? _statisticsOverview;
+  // Map<String, dynamic>? _statisticsOverview; // 통계 탭 제거로 미사용
   List<Map<String, dynamic>> _pointTransaction = [];
   Map<String, dynamic>? _monthlyStats;
-  Map<String, dynamic>? _weeklyStats;
+  // (주간 통계 상태 제거)
+  Map<String, int>? _todayPoints; // { earned: +, spent: - }
+  Map<String, dynamic>? _last30Stats; // 최근 30일 성과
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadData();
   }
   
@@ -49,9 +56,15 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         final results = await Future.wait([
           apiService.points.getPointBalance(),
           apiService.statistics.getOverview(), // API 스펙에 맞게 수정
-          apiService.statistics.getMonthlyStatistics(DateTime.now()),
+          apiService.statistics.getMonthlyStatistics(_focusedDay),
           apiService.statistics.getWeeklyStatistics(DateTime.now()),
+          apiService.statistics.getRecentDaysStatistics(30),
           apiService.points.getPointTransaction(limit: 10),
+          // 오늘 날짜 범위 포인트 내역 (오늘 요약 계산용)
+          apiService.points.getPointTransaction(
+            startDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+            endDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+          ),
         ]);
 
         if (mounted) {
@@ -64,39 +77,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               'currentGrade': 'BRONZE',
             };
             
-            // 통계 개요
-            if (results[1].success && results[1].data != null) {
-              final overview = results[1].data as StatisticsOverview;
-              _statisticsOverview = {
-                'totalAlarms': overview.totalAlarms,
-                'successAlarms': overview.successAlarms,
-                'missedAlarms': overview.missedAlarms,
-                'successRate': overview.successRate,
-                'consecutiveDays': overview.consecutiveDays,
-                'averageWakeTime': overview.averageWakeTime,
-                'last30DaysSuccessRate': overview.last30DaysSuccessRate,
-                'monthlySuccessRate': overview.monthlySuccessRate,
-                'monthlyPoints': overview.monthlyPoints,
-              };
-            } else {
-              _statisticsOverview = {
-                'totalAlarms': 0,
-                'successAlarms': 0,
-                'missedAlarms': 0,
-                'successRate': 0.0,
-                'consecutiveDays': 0,
-                'averageWakeTime': '00:00',
-                'last30DaysSuccessRate': 0.0,
-                'monthlySuccessRate': 0.0,
-                'monthlyPoints': 0,
-              };
-            }
+            // 통계 개요는 캘린더 통합으로 UI에서 미사용
             
             // 월간 통계
             if (results[2].success && results[2].data != null) {
               final monthlyData = results[2].data as PeriodStatistics;
+              print('월간 통계 - successRate: ${monthlyData.successRate}, totalAlarms: ${monthlyData.totalAlarms}');
               _monthlyStats = {
-                'successRate': (monthlyData.successRate * 100).round(),
+                'successRate': monthlyData.totalAlarms > 0 ? (monthlyData.successRate * 100).round() : 0,
                 'consecutiveDays': null, // API에서 제공되지 않음
                 'totalPointsEarned': monthlyData.totalPoints,
               };
@@ -104,43 +92,60 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               _monthlyStats = null; // 데이터 없음
             }
             
-            // 주간 통계
-            if (results[3].success && results[3].data != null) {
-              final weeklyData = results[3].data as PeriodStatistics;
-              _weeklyStats = {
-                'totalPointsEarned': weeklyData.totalPoints,
-                'successRate': (weeklyData.successRate * 100).round(),
-                'consecutiveDays': null, // API에서 제공되지 않음
+            // 주간 통계(미사용) 제거
+
+            // 최근 30일 통계
+            if (results[4].success && results[4].data != null) {
+              final last30Data = results[4].data as PeriodStatistics;
+              print('최근 30일 통계 - successRate: ${last30Data.successRate}, totalAlarms: ${last30Data.totalAlarms}');
+              _last30Stats = {
+                'totalPointsEarned': last30Data.totalPoints,
+                'successRate': last30Data.totalAlarms > 0 ? (last30Data.successRate * 100).round() : 0,
               };
             } else {
-              _weeklyStats = null; // 데이터 없음
+              _last30Stats = {'totalPointsEarned': 0, 'successRate': 0};
             }
             
             // 포인트 내역
-            if (results[4].success && results[4].data != null) {
-              final historyData = results[4].data! as List<dynamic>;
-              _pointTransaction = historyData.map<Map<String, dynamic>>((item) => {
-                'amount': (item as Map<String, dynamic>)['amount'],
-                'type': (item as Map<String, dynamic>)['type'],
-                'description': (item as Map<String, dynamic>)['description'],
-                'createdAt': (item as Map<String, dynamic>)['createdAt'],
+            if (results[5].success && results[5].data != null) {
+              final historyData = results[5].data as List<PointTransaction>;
+              _pointTransaction = historyData.map<Map<String, dynamic>>((tx) => {
+                'amount': tx.amount,
+                'type': tx.type,
+                'description': tx.description,
+                'createdAt': tx.createdAt.toIso8601String(),
               }).toList();
             } else {
               _pointTransaction = [];
+            }
+
+            // 오늘 요약 (획득/사용 합계)
+            if (results[6].success && results[6].data != null) {
+              final todayHistory = results[6].data as List<PointTransaction>;
+              int earned = 0;
+              int spent = 0;
+              for (final tx in todayHistory) {
+                final amount = tx.amount;
+                if (amount > 0) {
+                  earned += amount;
+                } else if (amount < 0) {
+                  spent += amount.abs();
+                }
+              }
+              _todayPoints = {'earned': earned, 'spent': spent};
+            } else {
+              _todayPoints = {'earned': 0, 'spent': 0};
             }
             
             _isLoading = false;
           });
         }
       } catch (e) {
-        print('통계 데이터 로드 오류: $e');
         if (mounted) {
           setState(() {
             // 오류 발생 시 데이터 없음으로 설정
             _pointSummary = null;
-            _statisticsOverview = null;
             _monthlyStats = null;
-            _weeklyStats = null;
             _pointTransaction = [];
             _isLoading = false;
           });
@@ -154,6 +159,27 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         });
       }
     }
+  }
+
+  Future<void> _loadMonthlyFor(DateTime date) async {
+    try {
+      final apiService = ApiService();
+      final resp = await apiService.statistics.getMonthlyStatistics(date);
+      if (!mounted) return;
+      setState(() {
+        if (resp.success && resp.data != null) {
+          final monthlyData = resp.data as PeriodStatistics;
+          _monthlyStats = {
+            'successRate': (monthlyData.successRate * 100).round(),
+            'consecutiveDays': null,
+            'totalPointsEarned': monthlyData.totalPoints,
+            'totalAlarms': monthlyData.totalAlarms,
+            'successAlarms': monthlyData.successAlarms,
+            'failedAlarms': monthlyData.failedAlarms,
+          };
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -175,7 +201,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
           dividerColor: Colors.transparent,
           tabs: const [
             Tab(text: '포인트'),
-            Tab(text: '통계'),
             Tab(text: '캘린더'),
           ],
         ),
@@ -196,7 +221,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                   controller: _tabController,
                   children: [
                     _buildPointsTab(),
-                    _buildStatsTab(),
                     _buildCalendarTab(),
                   ],
                 ),
@@ -260,14 +284,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   }
 
   Widget _buildPointsSummary() {
-    final pointSummary = _pointSummary;
-    final weeklyStats = _weeklyStats;
+    // final pointSummary = _pointSummary; // 미사용
+    // final weeklyStats = _weeklyStats; // 미사용
     
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            // 오늘 요약 (획득/사용)
+            if (_todayPoints != null) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildMiniStat('오늘 획득', '+${_todayPoints!['earned']}', Colors.green),
+                  _buildMiniStat('오늘 사용', '-${_todayPoints!['spent']}', Colors.red),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             // 포인트 타입별 구분
             Row(
               children: [
@@ -293,7 +328,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
               ],
             ),
             const SizedBox(height: 16),
-            // 최근 30일 성과
+            // 최근 30일 성과 (카드 상단에 표시)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -325,9 +360,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildMiniStat('획득 포인트', '+${_safeGetValue(_weeklyStats, 'totalPointsEarned')}', Colors.green),
-                      _buildMiniStat('성공률', '${_safeGetValue(_weeklyStats, 'successRate')}%', Colors.blue),
-                      _buildMiniStat('연속일', '${_safeGetValue(_weeklyStats, 'consecutiveDays')}일', Colors.orange),
+                      _buildMiniStat('획득 포인트', '+${_safeGetValue(_last30Stats, 'totalPointsEarned')}', Colors.green),
+                      _buildMiniStat('성공률', '${_safeGetValue(_last30Stats, 'successRate')}%', Colors.blue),
+                      _buildMiniStat('연속일', '-', Colors.orange),
                     ],
                   ),
                 ],
@@ -343,9 +378,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -420,7 +455,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             const SizedBox(height: 12),
             Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -460,7 +495,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
           borderRadius: BorderRadius.circular(6),
           boxShadow: isSelected ? [
             BoxShadow(
-              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
@@ -543,7 +578,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
 
   Widget _buildPointTransactionItem(Map<String, dynamic> item) {
     final isPositive = item['amount'] > 0;
-    final isConsumption = item['type'] == 'consumption';
+    final isConsumption = (item['type'].toString().toUpperCase()) == 'CONSUMPTION';
     final color = isPositive ? Colors.green : Colors.red;
     final bgColor = isConsumption ? Colors.orange[50] : Colors.blue[50];
     
@@ -554,7 +589,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isConsumption ? Colors.orange.withOpacity(0.3) : Colors.blue.withOpacity(0.3),
+          color: isConsumption ? Colors.orange.withValues(alpha: 0.3) : Colors.blue.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -630,132 +665,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildStatsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildAlarmStats(),
-          const SizedBox(height: 16),
-          _buildMonthlyPerformance(),
-        ],
-      ),
-    );
-  }
+  // (_buildStatsTab) 통합으로 제거
 
-  Widget _buildAlarmStats() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '알람 통계',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem('총 알람', '${_statisticsOverview?['totalAlarms'] ?? 0}', Icons.alarm),
-                ),
-                Expanded(
-                  child: _buildStatItem('성공', '${_statisticsOverview?['successfulAlarms'] ?? 0}', Icons.check_circle, Colors.green),
-                ),
-                Expanded(
-                  child: _buildStatItem('놓친 알람', '${(_statisticsOverview?['totalAlarms'] ?? 0) - (_statisticsOverview?['successfulAlarms'] ?? 0)}', Icons.cancel, Colors.red),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark 
-                    ? Theme.of(context).colorScheme.surface
-                    : Theme.of(context).colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '평균 기상 시간',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  Text(
-                    _statisticsOverview?['averageWakeTime'] ?? '00:00',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // (_buildAlarmStats) 캘린더 통합으로 제거
 
-  Widget _buildStatItem(String label, String value, IconData icon, [Color? color]) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: color ?? Theme.of(context).colorScheme.primary,
-          size: 32,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color ?? Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
+  // (_buildStatItem) 통합으로 미사용
 
-  Widget _buildMonthlyPerformance() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '이번 달 성과',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildPerformanceItem('성공률', '${_monthlyStats?['successRate'] ?? 0}%', Colors.green),
-            const SizedBox(height: 12),
-            _buildPerformanceItem('연속 성공', '${_monthlyStats?['consecutiveDays'] ?? 0}일', Colors.blue),
-            const SizedBox(height: 12),
-            _buildPerformanceItem('이번 달 포인트', '${_monthlyStats?['totalPointsEarned'] ?? 0}', Colors.orange),
-          ],
-        ),
-      ),
-    );
-  }
+  // (_buildMonthlyPerformance) 캘린더 통합으로 제거
 
   Widget _buildPerformanceItem(String label, String value, Color color) {
     return Row(
@@ -768,7 +684,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
@@ -785,7 +701,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
 
   Widget _buildCalendarTab() {
     return FutureBuilder<CalendarStatistics?>(
-      future: _loadCalendarData(),
+      future: _loadCalendarDataFor(_focusedDay),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -814,7 +730,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
         final calendarData = snapshot.data;
         if (calendarData == null) {
           // 데이터가 없어도 기본 캘린더 표시
-          final now = DateTime.now();
+          final now = _focusedDay;
           final emptyCalendarData = CalendarStatistics(
             year: now.year,
             month: now.month,
@@ -829,8 +745,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
   }
 
   Widget _buildCalendarContent(CalendarStatistics calendarData) {
-    // 월간 통계 데이터 가져오기
-    final monthlyStats = _monthlyStats;
+    // 월간 통계 데이터 가져오기 (요약과 성과로 확장)
+    // 날짜별 데이터 빠른 조회 맵
+    final Map<int, CalendarDay> dayMap = {
+      for (final d in calendarData.days) d.day: d,
+    };
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -844,7 +763,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                 children: [
                   IconButton(
                     onPressed: () {
-                      // 이전 달 로직
+                      final prevMonth = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+                      setState(() {
+                        _focusedDay = prevMonth;
+                      });
+                      _loadMonthlyFor(prevMonth);
                     },
                     icon: const Icon(Icons.chevron_left),
                   ),
@@ -857,7 +780,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                   ),
                   IconButton(
                     onPressed: () {
-                      // 다음 달 로직
+                      final nextMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+                      setState(() {
+                        _focusedDay = nextMonth;
+                      });
+                      _loadMonthlyFor(nextMonth);
                     },
                     icon: const Icon(Icons.chevron_right),
                   ),
@@ -866,7 +793,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
             ),
           ),
           const SizedBox(height: 16),
-          // 캘린더 카드
+          // 캘린더 + 요약/성과 통합 카드
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -874,27 +801,155 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    '알람 성공률 캘린더',
+                    '캘린더',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  // 월 선택 드롭다운 + 좌우 이동
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          final prevMonth = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+                          setState(() {
+                            _focusedDay = prevMonth;
+                          });
+                          _loadMonthlyFor(prevMonth);
+                        },
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      DropdownButton<int>(
+                        value: _focusedDay.month,
+                        underline: const SizedBox.shrink(),
+                        items: List.generate(12, (i) => i + 1)
+                            .map((m) => DropdownMenuItem(value: m, child: Text('${_focusedDay.year}년 $m월')))
+                            .toList(),
+                        onChanged: (m) {
+                          if (m == null) return;
+                          final newMonth = DateTime(_focusedDay.year, m, 1);
+                          setState(() {
+                            _focusedDay = newMonth;
+                          });
+                          _loadMonthlyFor(newMonth);
+                        },
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          final nextMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+                          setState(() {
+                            _focusedDay = nextMonth;
+                          });
+                          _loadMonthlyFor(nextMonth);
+                        },
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   _buildCalendarLegend(),
                   const SizedBox(height: 16),
-                  _buildCalendarGrid(calendarData),
+                  TableCalendar(
+                    firstDay: DateTime(calendarData.year, calendarData.month, 1).subtract(const Duration(days: 365)),
+                    lastDay: DateTime(calendarData.year, calendarData.month, 1).add(const Duration(days: 365)),
+                    focusedDay: _focusedDay,
+                    currentDay: DateTime.now(),
+                    headerVisible: false,
+                    startingDayOfWeek: StartingDayOfWeek.sunday,
+                    calendarFormat: CalendarFormat.month,
+                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                    onDaySelected: (selectedDay, focusedDay) {
+                      setState(() {
+                        _selectedDay = selectedDay;
+                        _focusedDay = focusedDay;
+                      });
+                      final calDay = dayMap[selectedDay.day] ?? CalendarDay(day: selectedDay.day, alarmCount: 0, successCount: 0, failCount: 0, status: 'none');
+                      _showDayDetailBottomSheet(calDay);
+                    },
+                    onPageChanged: (focusedDay) {
+                      _focusedDay = focusedDay;
+                      _loadMonthlyFor(focusedDay);
+                    },
+                    calendarBuilders: CalendarBuilders(
+                      markerBuilder: (context, day, events) {
+                        final d = dayMap[day.day];
+                        if (d == null) return const SizedBox.shrink();
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                        if (d.alarmCount == 0) {
+                          return Positioned(
+                            bottom: 4,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: isDark ? Colors.grey[600]! : Colors.grey, width: 2),
+                              ),
+                            ),
+                          );
+                        }
+                        final rate = d.successCount / d.alarmCount;
+                        final color = _successGradient(rate, isDark: isDark);
+                        return Positioned(
+                          bottom: 4,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: color, width: 2.5),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    calendarStyle: CalendarStyle(
+                      todayDecoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      selectedDecoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      weekendTextStyle: TextStyle(color: Colors.red[400]),
+                    ),
+                    daysOfWeekStyle: const DaysOfWeekStyle(
+                      weekdayStyle: TextStyle(fontWeight: FontWeight.w600),
+                      weekendStyle: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: Theme.of(context).dividerColor),
+                  const SizedBox(height: 12),
+                  // 선택한 달 요약 (인라인)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildMonthSummaryItem('총 알람', '${_monthlyStats?['totalAlarms'] ?? 0}개', Icons.alarm),
+                      _buildMonthSummaryItem('성공', '${_monthlyStats?['successAlarms'] ?? 0}개', Icons.check_circle, Colors.green),
+                      _buildMonthSummaryItem('실패', '${_monthlyStats?['failedAlarms'] ?? 0}개', Icons.cancel, Colors.red),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // 선택한 달 성과 (인라인)
+                  _buildPerformanceItem('성공률', '${_monthlyStats?['successRate'] ?? 0}%', Colors.green),
+                  const SizedBox(height: 8),
+                  _buildPerformanceItem('포인트', '${_monthlyStats?['totalPointsEarned'] ?? 0}', Colors.orange),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          // 선택된 날짜 상세 정보
-          _buildSelectedDateInfo(monthlyStats),
+          // 기존 분리 카드 제거됨(통합 카드로 상단에서 표시)
         ],
       ),
     );
   }
+
+  // (통합 카드로 사용되던 보조 위젯 제거)
 
   Widget _buildCalendarLegend() {
     return Row(
@@ -924,13 +979,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  Future<CalendarStatistics?> _loadCalendarData() async {
+  Future<CalendarStatistics?> _loadCalendarDataFor(DateTime date) async {
     try {
       final apiService = ApiService();
-      final now = DateTime.now();
       final response = await apiService.statistics.getCalendarStatistics(
-        year: now.year,
-        month: now.month,
+        year: date.year,
+        month: date.month,
       );
       
       if (response.success && response.data != null) {
@@ -938,168 +992,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
       }
       return null;
     } catch (e) {
-      print('캘린더 데이터 로드 오류: $e');
       return null;
     }
   }
 
-  Widget _buildCalendarGrid(CalendarStatistics calendarData) {
-    // 요일 헤더
-    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-    
-    // 해당 월의 첫 번째 날과 마지막 날 계산
-    final firstDay = DateTime(calendarData.year, calendarData.month, 1);
-    final lastDay = DateTime(calendarData.year, calendarData.month + 1, 0);
-    final firstWeekday = firstDay.weekday % 7; // 일요일이 0이 되도록 조정
-    final daysInMonth = lastDay.day;
-    
-    return Column(
-      children: [
-        // 요일 헤더
-        Row(
-          children: weekDays.map((day) => Expanded(
-            child: Center(
-              child: Text(
-                day,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          )).toList(),
-        ),
-        const SizedBox(height: 8),
-        // 캘린더 그리드
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            childAspectRatio: 1,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-          ),
-          itemCount: firstWeekday + daysInMonth,
-          itemBuilder: (context, index) {
-            if (index < firstWeekday) {
-              // 빈 칸
-              return Container();
-            }
-            
-            final day = index - firstWeekday + 1;
-            final dayData = calendarData.days.firstWhere(
-              (d) => d.day == day,
-              orElse: () => CalendarDay(
-                day: day,
-                alarmCount: 0,
-                successCount: 0,
-                failCount: 0,
-                status: 'none',
-              ),
-            );
-            
-            Color color;
-            String status = dayData.status;
-            if (status == 'success') {
-              color = Colors.green;
-            } else if (status == 'failure') {
-              color = Colors.red;
-            } else if (status == 'partial') {
-              color = Colors.orange;
-            } else {
-              color = Colors.grey[300]!;
-            }
+  // (_buildCalendarGrid) TableCalendar로 대체되어 제거
 
-            return GestureDetector(
-              onTap: () {
-                _showDateDetail(day, status, dayData.alarmCount, dayData.successCount, dayData.failCount);
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color, width: 1.5),
-                ),
-                child: Center(
-                  child: Text(
-                    '$day',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: color.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSelectedDateInfo(Map<String, dynamic>? monthlyStats) {
-    // 월간 통계 데이터에서 값 추출
-    final totalAlarms = monthlyStats?['totalAlarms'] ?? 0;
-    final successAlarms = monthlyStats?['successAlarms'] ?? 0;
-    final failedAlarms = monthlyStats?['failedAlarms'] ?? 0;
-    final successRate = monthlyStats?['successRate'] ?? 0;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '날짜를 탭하면 상세 정보를 확인할 수 있습니다',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '이번 달 요약',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildMonthSummaryItem('총 알람', '${totalAlarms}개', Icons.alarm),
-                _buildMonthSummaryItem('성공', '${successAlarms}개', Icons.check_circle, Colors.green),
-                _buildMonthSummaryItem('실패', '${failedAlarms}개', Icons.cancel, Colors.red),
-              ],
-            ),
-            if (totalAlarms > 0) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.trending_up, color: Colors.blue[600], size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '성공률: ${(successRate * 100).round()}%',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[600],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  // (_buildSelectedDateInfo) 통합으로 제거
 
   Widget _buildMonthSummaryItem(String label, String value, IconData icon, [Color? color]) {
     return Column(
@@ -1129,102 +1028,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     );
   }
 
-  void _showDateDetail(int day, String status, int alarmCount, int successCount, int failCount) {
-    final totalAlarms = alarmCount;
-    final successAlarms = successCount;
-    final failureAlarms = failCount;
-    final successRate = totalAlarms > 0 ? (successAlarms / totalAlarms * 100).round() : 0;
+  // (_showDateDetail) 상세 모달은 추후 필요 시 복구
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${DateTime.now().month}월 ${day}일 상세'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDetailRow('총 알람', '$totalAlarms개'),
-            _buildDetailRow('성공', '$successAlarms개', Colors.green),
-            _buildDetailRow('실패', '$failureAlarms개', Colors.red),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: totalAlarms > 0 ? successRate / 100 : 0,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                successRate >= 80 ? Colors.green : 
-                successRate >= 50 ? Colors.orange : Colors.red,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '성공률: $successRate%',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
+  // (_buildDetailRow) 상세 모달 제거로 미사용
 
-  Widget _buildDetailRow(String label, String value, [Color? color]) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 데이터가 없을 때 표시할 위젯
-  Widget _buildNoDataWidget(String message) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.data_usage_outlined,
-            size: 48,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '서버에서 데이터를 불러올 수 없습니다',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+  // (_buildNoDataWidget) 미사용으로 제거
 
   /// 안전한 데이터 접근 헬퍼
   String _safeGetValue(Map<String, dynamic>? data, String key, [String defaultValue = '-']) {
@@ -1232,5 +1040,227 @@ class _StatsScreenState extends ConsumerState<StatsScreen> with TickerProviderSt
     final value = data[key];
     if (value == null) return defaultValue;
     return value.toString();
+  }
+
+  // (_classifyDay) 그라데이션 마커로 대체되어 제거
+
+  void _showDayDetailBottomSheet(CalendarDay day) {
+    final success = day.successCount;
+    final fail = day.failCount;
+    final total = day.alarmCount;
+    final percent = total > 0 ? success / total : 0.0;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('선택한 날짜 요약', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${_focusedDay.year}.${_focusedDay.month}.${day.day}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+          ],
+        ),
+              const SizedBox(height: 16),
+              SuccessDonut(
+                percent: percent,
+                total: total,
+                success: success,
+                fail: fail,
+                ringColor: _successGradient(percent, isDark: Theme.of(context).brightness == Brightness.dark),
+              ),
+              const SizedBox(height: 12),
+              FutureBuilder<int>(
+                future: _getEarnedPointsOnDate(DateTime(_focusedDay.year, _focusedDay.month, day.day)),
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(height: 20, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+                  }
+                  final pts = snap.data ?? 0;
+                  return Text('포인트 +$pts', style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary));
+                },
+          ),
+        ],
+      ),
+        );
+      },
+    );
+  }
+
+}
+
+// (_DayCategory) 사용하지 않아 제거
+
+class SuccessDonut extends StatefulWidget {
+  final double percent; // 0.0 ~ 1.0
+  final int total;
+  final int success;
+  final int fail;
+  final Color ringColor;
+  const SuccessDonut({super.key, required this.percent, required this.total, required this.success, required this.fail, required this.ringColor});
+
+  @override
+  State<SuccessDonut> createState() => _SuccessDonutState();
+}
+
+class _SuccessDonutState extends State<SuccessDonut> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant SuccessDonut oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.percent != widget.percent) {
+      _controller
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = 160.0;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size.square(size),
+            painter: _DonutPainter(
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              foregroundColor: widget.ringColor,
+              percent: (widget.percent.clamp(0.0, 1.0)) * _animation.value,
+              strokeWidth: 16,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _legendDot(Theme.of(context).colorScheme.primary, '총 ${widget.total}'),
+              const SizedBox(height: 6),
+              _legendDot(Colors.green, '성공 ${widget.success}'),
+              const SizedBox(height: 6),
+              _legendDot(Colors.red, '실패 ${widget.fail}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String text) {
+    return Row(
+        children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final double percent;
+  final double strokeWidth;
+  _DonutPainter({required this.backgroundColor, required this.foregroundColor, required this.percent, required this.strokeWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final center = rect.center;
+    final radius = size.width / 2 - strokeWidth / 2;
+
+    final bgPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final fgPaint = Paint()
+      ..color = foregroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    // 배경 원
+    canvas.drawCircle(center, radius, bgPaint);
+    // 진행 원호 (위쪽에서 시작하도록 -90도 회전)
+    final startAngle = -90 * 3.1415926535 / 180;
+    final sweepAngle = 2 * 3.1415926535 * percent;
+    final arcRect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawArc(arcRect, startAngle, sweepAngle, false, fgPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) {
+    return oldDelegate.percent != percent ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.foregroundColor != foregroundColor ||
+        oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+// 성공률에 따른 그라데이션 색상 (빨강→주황→초록)
+Color _successGradient(double rate, {bool isDark = false}) {
+  final clamped = rate.clamp(0.0, 1.0);
+  final red = isDark ? Colors.red[300]! : Colors.red;
+  final orange = isDark ? Colors.orange[300]! : Colors.orange;
+  final green = isDark ? Colors.green[300]! : Colors.green;
+  if (clamped < 0.5) {
+    final t = clamped / 0.5;
+    return Color.lerp(red, orange, t)!;
+  } else {
+    final t = (clamped - 0.5) / 0.5;
+    return Color.lerp(orange, green, t)!;
+  }
+}
+
+// 하루 획득 포인트 합계 조회
+Future<int> _getEarnedPointsOnDate(DateTime date) async {
+  try {
+    final api = ApiService();
+    final resp = await api.points.getPointTransaction(
+      startDate: DateTime(date.year, date.month, date.day),
+      endDate: DateTime(date.year, date.month, date.day),
+    );
+    if (!resp.success || resp.data == null) return 0;
+    final list = resp.data as List<PointTransaction>;
+    int sum = 0;
+    for (final tx in list) {
+      if (tx.amount > 0) sum += tx.amount;
+    }
+    return sum;
+  } catch (_) {
+    return 0;
   }
 }

@@ -121,14 +121,23 @@ class UserApiService {
       final missingFields = <String>[];
 
       // 필수 필드 확인
-      if (user.email.isNotEmpty) completeness += 25;
-      else missingFields.add('email');
+      if (user.email.isNotEmpty) {
+        completeness += 25;
+      } else {
+        missingFields.add('email');
+      }
 
-      if (user.nickname.isNotEmpty) completeness += 25;
-      else missingFields.add('nickname');
+      if (user.nickname.isNotEmpty) {
+        completeness += 25;
+      } else {
+        missingFields.add('nickname');
+      }
 
-      if (user.selectedAvatar != null && user.selectedAvatar!.isNotEmpty) completeness += 25;
-      else missingFields.add('avatar');
+      if (user.selectedAvatar.isNotEmpty) {
+        completeness += 25;
+      } else {
+        missingFields.add('avatar');
+      }
 
       // 추가 정보 확인 (기본적으로 완료로 처리)
       completeness += 25;

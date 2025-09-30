@@ -87,8 +87,8 @@ class AuthApiService {
   /// POST /api/auth/refresh (BaseApiService에서 구현)
   Future<ApiResponse<AuthToken>> refreshAuthToken() async {
     try {
-      final success = await _baseApi.refreshAccessToken();
-      if (success) {
+      final response = await _baseApi.refreshAccessToken();
+      if (response.success) {
         return ApiResponse.success(
           AuthToken(
             accessToken: _baseApi.accessToken!,

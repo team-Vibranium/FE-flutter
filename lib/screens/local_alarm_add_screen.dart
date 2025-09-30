@@ -428,7 +428,7 @@ class _LocalAlarmAddScreenState extends State<LocalAlarmAddScreen> {
             // 스누즈 스위치
             SwitchListTile(
               title: const Text('스누즈'),
-              subtitle: Text('${_snoozeInterval}분 간격으로 다시 알립니다'),
+              subtitle: Text('$_snoozeInterval분 간격으로 다시 알립니다'),
               value: _snoozeEnabled,
               onChanged: (value) {
                 setState(() => _snoozeEnabled = value);
@@ -440,7 +440,7 @@ class _LocalAlarmAddScreenState extends State<LocalAlarmAddScreen> {
               const SizedBox(height: 8),
               ListTile(
                 title: const Text('스누즈 간격'),
-                subtitle: Text('${_snoozeInterval}분'),
+                subtitle: Text('$_snoozeInterval분'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _showSnoozeIntervalDialog,
               ),
@@ -461,7 +461,7 @@ class _LocalAlarmAddScreenState extends State<LocalAlarmAddScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: intervals.map((interval) => RadioListTile<int>(
-            title: Text('${interval}분'),
+            title: Text('$interval분'),
             value: interval,
             groupValue: _snoozeInterval,
             onChanged: (value) => Navigator.of(context).pop(value),

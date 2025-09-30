@@ -122,20 +122,20 @@ class LocalAlarm {
     final now = tz.TZDateTime.now(seoul);
     final today = tz.TZDateTime(seoul, now.year, now.month, now.day, hour, minute);
     
-    print('🕐 nextAlarmTime 계산:');
-    print('  - 현재 시간 (로컬): $now');
-    print('  - 알람 시간: $hour:$minute');
-    print('  - 오늘 알람 시간: $today');
-    print('  - 반복 요일: $repeatDays');
+    // Debug: nextAlarmTime 계산:
+    // Debug:   - 현재 시간 (로컬): $now
+    // Debug:   - 알람 시간: $hour:$minute
+    // Debug:   - 오늘 알람 시간: $today
+    // Debug:   - 반복 요일: $repeatDays
     
     // 반복 없음 (한번만)
     if (repeatDays.isEmpty) {
       if (today.isAfter(now)) {
-        print('  - 반환: 오늘 알람 시간 ($today)');
+        // Debug: 반환: 오늘 알람 시간 ($today)
         return today;
       } else {
         final tomorrow = today.add(const Duration(days: 1));
-        print('  - 반환: 내일 알람 시간 ($tomorrow)');
+        // Debug: 반환: 내일 알람 시간 ($tomorrow)
         return tomorrow;
       }
     }
@@ -147,16 +147,16 @@ class LocalAlarm {
       
       if (repeatDays.contains(weekday)) {
         if (i == 0 && checkDate.isAfter(now)) {
-          print('  - 반환: 오늘 반복 알람 시간 ($checkDate)');
+          // Debug: 반환: 오늘 반복 알람 시간 ($checkDate)
           return checkDate;
         } else if (i > 0) {
-          print('  - 반환: ${i}일 후 반복 알람 시간 ($checkDate)');
+          // Debug: 반환: $i일 후 반복 알람 시간 ($checkDate)
           return checkDate;
         }
       }
     }
     
-    print('  - 반환: null (다음 알람 시간 없음)');
+    // Debug: 반환: null (다음 알람 시간 없음)
     return null;
   }
 

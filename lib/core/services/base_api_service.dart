@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../environment/environment.dart';
 import '../models/api_models.dart' as models;
 
@@ -20,23 +22,23 @@ class ApiException implements Exception {
 
 /// 네트워크 예외 클래스
 class NetworkException extends ApiException {
-  const NetworkException(String message) : super(message);
+  const NetworkException(super.message);
 }
 
 /// 인증 예외 클래스
 class AuthenticationException extends ApiException {
-  const AuthenticationException(String message) : super(message, statusCode: 401);
+  const AuthenticationException(super.message) : super(statusCode: 401);
 }
 
 /// 권한 예외 클래스
 class AuthorizationException extends ApiException {
-  const AuthorizationException(String message) : super(message, statusCode: 403);
+  const AuthorizationException(super.message) : super(statusCode: 403);
 }
 
 /// 서버 예외 클래스
 class ServerException extends ApiException {
-  const ServerException(String message, {int? statusCode}) 
-      : super(message, statusCode: statusCode ?? 500);
+  const ServerException(super.message, {int? statusCode}) 
+      : super(statusCode: statusCode ?? 500);
 }
 
 /// 기본 API 서비스 클래스
@@ -49,22 +51,55 @@ class BaseApiService {
   late http.Client _httpClient;
   String? _accessToken;
   String? _refreshToken;
+  SharedPreferences? _prefs;
 
   /// HTTP 클라이언트 초기화
-  void initialize() {
+  Future<void> initialize() async {
     _httpClient = http.Client();
-    print('🌐 HTTP 클라이언트 초기화 완료');
-    print('🔗 Base URL: ${EnvironmentConfig.baseUrl}');
+    _prefs = await SharedPreferences.getInstance();
+    
+    // 저장된 토큰 로드
+    await _loadStoredTokens();
+  }
+  
+  /// 저장된 토큰 로드
+  Future<void> _loadStoredTokens() async {
+    if (_prefs != null) {
+      _accessToken = _prefs!.getString('access_token');
+      _refreshToken = _prefs!.getString('refresh_token');
+    }
+  }
+  
+  /// 토큰 저장
+  Future<void> _saveTokens() async {
+    if (_prefs != null) {
+      if (_accessToken != null) {
+        await _prefs!.setString('access_token', _accessToken!);
+      }
+      if (_refreshToken != null) {
+        await _prefs!.setString('refresh_token', _refreshToken!);
+      }
+    }
+  }
+  
+  /// 토큰 삭제
+  Future<void> _clearStoredTokens() async {
+    if (_prefs != null) {
+      await _prefs!.remove('access_token');
+      await _prefs!.remove('refresh_token');
+    }
   }
 
   /// 액세스 토큰 설정
-  void setAccessToken(String? token) {
+  Future<void> setAccessToken(String? token) async {
     _accessToken = token;
+    await _saveTokens();
   }
 
   /// 리프레시 토큰 설정
-  void setRefreshToken(String? token) {
+  Future<void> setRefreshToken(String? token) async {
     _refreshToken = token;
+    await _saveTokens();
   }
 
   /// 현재 액세스 토큰 반환
@@ -72,17 +107,42 @@ class BaseApiService {
 
   /// 현재 리프레시 토큰 반환
   String? get refreshToken => _refreshToken;
+  
+  /// 저장된 인증 토큰 반환 (만료 시간 포함)
+  models.AuthToken? getStoredAuthToken() {
+    if (_accessToken == null || _refreshToken == null) return null;
+    
+    try {
+      // JWT 토큰에서 만료 시간 추출
+      final accessTokenDecoded = JwtDecoder.decode(_accessToken!);
+      final expiresAt = DateTime.fromMillisecondsSinceEpoch(
+        (accessTokenDecoded['exp'] as int) * 1000,
+      );
+      
+      return models.AuthToken(
+        accessToken: _accessToken!,
+        refreshToken: _refreshToken!,
+        expiresAt: expiresAt,
+      );
+    } catch (e) {
+      // JWT 디코딩 실패 시 null 반환
+      debugPrint('JWT 토큰 디코딩 실패: $e');
+      return null;
+    }
+  }
 
   /// 인증 토큰 설정
-  void setAuthTokens(models.AuthToken authToken) {
+  Future<void> setAuthTokens(models.AuthToken authToken) async {
     _accessToken = authToken.accessToken;
     _refreshToken = authToken.refreshToken;
+    await _saveTokens();
   }
 
   /// 인증 토큰 제거
-  void clearAuthTokens() {
+  Future<void> clearAuthTokens() async {
     _accessToken = null;
     _refreshToken = null;
+    await _clearStoredTokens();
   }
 
   /// 기본 헤더 생성
@@ -161,9 +221,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      print('🌐 POST 요청 시작: $uri');
-      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
-      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
+      // Debug: POST 요청 시작: $uri
+      // Debug: 요청 헤더: ${_getHeaders(additionalHeaders: headers)}
+      // Debug: 요청 본문: ${body != null ? jsonEncode(body) : 'null'}
 
       final response = await _httpClient.post(
         uri,
@@ -171,22 +231,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
-      print('✅ POST 응답 성공: ${response.statusCode}');
-      print('📄 응답 헤더: ${response.headers}');
-      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+      // Debug: POST 응답 성공: ${response.statusCode}
+      // Debug: 응답 헤더: ${response.headers}
+      // Debug: 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}
 
       return _handleResponse<T>(response, fromJson);
     } on SocketException catch (e) {
-      print('❌ 소켓 연결 실패: $e');
+      // Debug: 소켓 연결 실패: $e
       throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
-      print('❌ HTTP 오류: ${e.message}');
+      // Debug: HTTP 오류: ${e.message}
       throw NetworkException('네트워크 오류: ${e.message}');
     } on TimeoutException catch (e) {
-      print('❌ 타임아웃 오류: $e');
+      // Debug: 타임아웃 오류: $e
       throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
-      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
+      // Debug: 예상치 못한 오류: $e (타입: ${e.runtimeType})
       if (e is ApiException) rethrow;
       throw ApiException('POST 요청 실패: $e');
     }
@@ -201,9 +261,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      print('🌐 PUT 요청 시작: $uri');
-      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
-      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
+      // Debug: PUT 요청 시작: $uri
+      // Debug: 요청 헤더: ${_getHeaders(additionalHeaders: headers)}
+      // Debug: 요청 본문: ${body != null ? jsonEncode(body) : 'null'}
 
       final response = await _httpClient.put(
         uri,
@@ -211,22 +271,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
-      print('✅ PUT 응답 성공: ${response.statusCode}');
-      print('📄 응답 헤더: ${response.headers}');
-      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+      // Debug: PUT 응답 성공: ${response.statusCode}
+      // Debug: 응답 헤더: ${response.headers}
+      // Debug: 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}
 
       return _handleResponse<T>(response, fromJson);
     } on SocketException catch (e) {
-      print('❌ 소켓 연결 실패: $e');
+      // Debug: 소켓 연결 실패: $e
       throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
-      print('❌ HTTP 오류: ${e.message}');
+      // Debug: HTTP 오류: ${e.message}
       throw NetworkException('네트워크 오류: ${e.message}');
     } on TimeoutException catch (e) {
-      print('❌ 타임아웃 오류: $e');
+      // Debug: 타임아웃 오류: $e
       throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
-      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
+      // Debug: 예상치 못한 오류: $e (타입: ${e.runtimeType})
       if (e is ApiException) rethrow;
       throw ApiException('PUT 요청 실패: $e');
     }
@@ -241,9 +301,9 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      print('🌐 PATCH 요청 시작: $uri');
-      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
-      print('📝 요청 본문: ${body != null ? jsonEncode(body) : 'null'}');
+      // Debug: PATCH 요청 시작: $uri
+      // Debug: 요청 헤더: ${_getHeaders(additionalHeaders: headers)}
+      // Debug: 요청 본문: ${body != null ? jsonEncode(body) : 'null'}
 
       final response = await _httpClient.patch(
         uri,
@@ -251,22 +311,22 @@ class BaseApiService {
         body: body != null ? jsonEncode(body) : null,
       );
 
-      print('✅ PATCH 응답 성공: ${response.statusCode}');
-      print('📄 응답 헤더: ${response.headers}');
-      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+      // Debug: PATCH 응답 성공: ${response.statusCode}
+      // Debug: 응답 헤더: ${response.headers}
+      // Debug: 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}
 
       return _handleResponse<T>(response, fromJson);
     } on SocketException catch (e) {
-      print('❌ 소켓 연결 실패: $e');
+      // Debug: 소켓 연결 실패: $e
       throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
-      print('❌ HTTP 오류: ${e.message}');
+      // Debug: HTTP 오류: ${e.message}
       throw NetworkException('네트워크 오류: ${e.message}');
     } on TimeoutException catch (e) {
-      print('❌ 타임아웃 오류: $e');
+      // Debug: 타임아웃 오류: $e
       throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
-      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
+      // Debug: 예상치 못한 오류: $e (타입: ${e.runtimeType})
       if (e is ApiException) rethrow;
       throw ApiException('PATCH 요청 실패: $e');
     }
@@ -280,30 +340,30 @@ class BaseApiService {
   }) async {
     try {
       final uri = Uri.parse(_buildUrl(path));
-      print('🌐 DELETE 요청 시작: $uri');
-      print('📋 요청 헤더: ${_getHeaders(additionalHeaders: headers)}');
+      // Debug: DELETE 요청 시작: $uri
+      // Debug: 요청 헤더: ${_getHeaders(additionalHeaders: headers)}
 
       final response = await _httpClient.delete(
         uri,
         headers: _getHeaders(additionalHeaders: headers),
       );
 
-      print('✅ DELETE 응답 성공: ${response.statusCode}');
-      print('📄 응답 헤더: ${response.headers}');
-      print('📝 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+      // Debug: DELETE 응답 성공: ${response.statusCode}
+      // Debug: 응답 헤더: ${response.headers}
+      // Debug: 응답 본문: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}
 
       return _handleResponse<T>(response, fromJson);
     } on SocketException catch (e) {
-      print('❌ 소켓 연결 실패: $e');
+      // Debug: 소켓 연결 실패: $e
       throw NetworkException('인터넷 연결을 확인해주세요: $e');
     } on HttpException catch (e) {
-      print('❌ HTTP 오류: ${e.message}');
+      // Debug: HTTP 오류: ${e.message}
       throw NetworkException('네트워크 오류: ${e.message}');
     } on TimeoutException catch (e) {
-      print('❌ 타임아웃 오류: $e');
+      // Debug: 타임아웃 오류: $e
       throw NetworkException('요청 시간 초과: $e');
     } catch (e) {
-      print('🔥 예상치 못한 오류: $e (타입: ${e.runtimeType})');
+      // Debug: 예상치 못한 오류: $e (타입: ${e.runtimeType})
       if (e is ApiException) rethrow;
       throw ApiException('DELETE 요청 실패: $e');
     }
@@ -314,41 +374,41 @@ class BaseApiService {
     http.Response response,
     T Function(Map<String, dynamic>)? fromJson,
   ) {
-    print('📊 응답 상태 코드: ${response.statusCode}');
-    print('📝 응답 본문 길이: ${response.body.length}');
+    // Debug: 응답 상태 코드: ${response.statusCode}
+    // Debug: 응답 본문 길이: ${response.body.length}
 
     // 상태 코드에 따른 처리
     switch (response.statusCode) {
       case 200:
       case 201:
-        print('✅ 성공 응답 처리 중...');
+        // Debug: 성공 응답 처리 중...
         return _parseSuccessResponse<T>(response, fromJson);
       case 400:
-        print('❌ 잘못된 요청 (400)');
+        // Debug: 잘못된 요청 (400)
         throw _parseErrorResponse(response, '잘못된 요청입니다');
       case 401:
-        print('❌ 인증 실패 (401)');
+        // Debug: 인증 실패 (401)
         throw _parseAuthenticationError(response);
       case 403:
-        print('❌ 권한 없음 (403)');
+        // Debug: 권한 없음 (403)
         throw AuthorizationException(_parseErrorMessage(response, '권한이 없습니다'));
       case 404:
-        print('❌ 리소스 없음 (404)');
+        // Debug: 리소스 없음 (404)
         throw ApiException(_parseErrorMessage(response, '요청한 리소스를 찾을 수 없습니다'), statusCode: 404);
       case 422:
-        print('❌ 입력 데이터 오류 (422)');
+        // Debug: 입력 데이터 오류 (422)
         throw ApiException(_parseErrorMessage(response, '입력 데이터가 올바르지 않습니다'), statusCode: 422);
       case 500:
-        print('❌ 서버 내부 오류 (500)');
+        // Debug: 서버 내부 오류 (500)
         throw ServerException(_parseErrorMessage(response, '서버 내부 오류가 발생했습니다'));
       case 502:
-        print('❌ 게이트웨이 오류 (502)');
+        // Debug: 게이트웨이 오류 (502)
         throw ServerException(_parseErrorMessage(response, '서버 게이트웨이 오류가 발생했습니다'), statusCode: 502);
       case 503:
-        print('❌ 서비스 사용 불가 (503)');
+        // Debug: 서비스 사용 불가 (503)
         throw ServerException(_parseErrorMessage(response, '서버를 일시적으로 사용할 수 없습니다'), statusCode: 503);
       default:
-        print('❌ 알 수 없는 오류 (${response.statusCode})');
+        // Debug: 알 수 없는 오류 (${response.statusCode})
         throw ServerException(
           _parseErrorMessage(response, '알 수 없는 서버 오류가 발생했습니다'),
           statusCode: response.statusCode,
@@ -426,13 +486,6 @@ class BaseApiService {
   /// 인증 에러 파싱
   AuthenticationException _parseAuthenticationError(http.Response response) {
     final errorMessage = _parseErrorMessage(response, '인증이 필요합니다');
-    
-    // 토큰이 만료된 경우 자동 갱신 시도
-    if (_refreshToken != null) {
-      // TODO: 토큰 자동 갱신 로직 구현
-      debugPrint('토큰 갱신 필요');
-    }
-    
     return AuthenticationException(errorMessage);
   }
 
@@ -451,7 +504,7 @@ class BaseApiService {
   }
 
   /// 토큰 갱신
-  Future<bool> refreshAccessToken() async {
+  Future<models.ApiResponse<models.AuthToken>> refreshAccessToken() async {
     if (_refreshToken == null) {
       throw const AuthenticationException('리프레시 토큰이 없습니다');
     }
@@ -464,14 +517,13 @@ class BaseApiService {
       );
 
       if (response.success && response.data != null) {
-        setAuthTokens(response.data!);
-        return true;
+        await setAuthTokens(response.data!);
       }
-      return false;
+      return response;
     } catch (e) {
       debugPrint('토큰 갱신 실패: $e');
-      clearAuthTokens();
-      return false;
+      await clearAuthTokens();
+      rethrow;
     }
   }
 

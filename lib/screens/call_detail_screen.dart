@@ -87,8 +87,8 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     final callStart = widget.callData['callStart'] as DateTime?;
     final callEnd = widget.callData['callEnd'] as DateTime?;
 
-    print('🔍 callStart: $callStart');
-    print('🔍 callEnd: $callEnd');
+    // Debug: callStart: $callStart
+    // Debug: callEnd: $callEnd
 
     if (callStart == null || callEnd == null) {
       return '알 수 없음';
@@ -98,12 +98,12 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
 
-    print('🔍 duration: ${duration.inSeconds}초 (${minutes}분 ${seconds}초)');
+    // Debug: duration: ${duration.inSeconds}초 ($minutes분 $seconds초)
 
     if (minutes > 0) {
-      return '$minutes분 ${seconds}초';
+      return '$minutes분 $seconds초';
     } else {
-      return '${seconds}초';
+      return '$seconds초';
     }
   }
 
@@ -115,7 +115,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         border: Border(
           bottom: BorderSide(
             color: Colors.grey[300]!,

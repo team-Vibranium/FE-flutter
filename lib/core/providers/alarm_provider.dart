@@ -110,14 +110,14 @@ class AlarmNotifier extends StateNotifier<AlarmState> {
   
   void _onNotificationResponse(NotificationResponse response) {
     // 알림 클릭 시 알람 화면으로 이동하는 로직
-    print('🔔 알림 클릭됨: ${response.payload}');
+    // Debug: 알림 클릭됨: ${response.payload}
     _handleAlarmNotification(response);
   }
 
   @pragma('vm:entry-point')
   static void _onBackgroundNotificationResponse(NotificationResponse response) {
     // 백그라운드에서 알림이 왔을 때 자동으로 알람 화면으로 이동
-    print('🔔 백그라운드 알림 수신: ${response.payload}');
+    // Debug: 백그라운드 알림 수신: ${response.payload}
     _handleAlarmNotificationStatic(response);
   }
 
@@ -396,13 +396,13 @@ class AlarmNotifier extends StateNotifier<AlarmState> {
     
     // 즉시 알림인 경우 (60초 이내) 카운트다운 표시
     if (secondsUntilAlarm <= 60) {
-      print('⚡ 즉시 알림 설정됨! ${secondsUntilAlarm}초 후 울립니다.');
+      print('⚡ 즉시 알림 설정됨! $secondsUntilAlarm초 후 울립니다.');
       
       // 카운트다운 타이머 추가
       Timer.periodic(const Duration(seconds: 1), (timer) {
         final remaining = secondsUntilAlarm - timer.tick;
         if (remaining > 0) {
-          print('⏰ 알람까지 ${remaining}초 남음');
+          print('⏰ 알람까지 $remaining초 남음');
         } else {
           timer.cancel();
           print('🔔 알람 시간 도달! 자동으로 알람 화면으로 이동합니다.');
@@ -419,7 +419,7 @@ class AlarmNotifier extends StateNotifier<AlarmState> {
       });
     } else {
       // 장기 알람의 경우에도 정확한 시간에 체크하는 타이머 설정
-      print('⏰ 장기 알람 설정됨! ${secondsUntilAlarm}초 후 울립니다.');
+      print('⏰ 장기 알람 설정됨! $secondsUntilAlarm초 후 울립니다.');
       
       // 정확한 시간에 알람 체크하는 타이머
       Timer(Duration(seconds: secondsUntilAlarm), () {
@@ -456,7 +456,7 @@ class AlarmNotifier extends StateNotifier<AlarmState> {
     
     try {
       // TODO: 실제 API 호출 구현 필요
-      print('알람 결과 제출: $result, 시간: ${durationSeconds}초');
+      print('알람 결과 제출: $result, 시간: $durationSeconds초');
       
       // 임시로 성공 처리
       state = state.copyWith(

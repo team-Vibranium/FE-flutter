@@ -27,7 +27,6 @@ class LocalAlarmService {
       // 알림 서비스 초기화
       final notificationResult = await _notificationService.initialize();
       if (!notificationResult) {
-        print('알림 서비스 초기화 실패');
         return false;
       }
       
@@ -38,10 +37,8 @@ class LocalAlarmService {
       await _notificationService.rescheduleAllAlarms();
       
       _isInitialized = true;
-      print('로컬 알람 서비스 초기화 완료');
       return true;
     } catch (e) {
-      print('로컬 알람 서비스 초기화 오류: $e');
       return false;
     }
   }
@@ -81,12 +78,10 @@ class LocalAlarmService {
         backendAlarmId: backendAlarmId,
       );
 
-      print('🆕 로컬 알람 생성: ID=${alarm.id}, type=$type, backendAlarmId=$backendAlarmId');
       
       // 저장소에 저장
       final saveResult = await _storageService.saveAlarm(alarm);
       if (!saveResult) {
-        print('알람 저장 실패');
         return null;
       }
       
@@ -94,15 +89,12 @@ class LocalAlarmService {
       if (isEnabled) {
         final scheduleResult = await _notificationService.scheduleAlarm(alarm);
         if (!scheduleResult) {
-          print('알람 스케줄링 실패');
           // 저장은 되었지만 스케줄링 실패 시에도 알람 객체 반환
         }
       }
       
-      print('새 알람 생성 완료: ${alarm.title}');
       return alarm;
     } catch (e) {
-      print('알람 생성 오류: $e');
       return null;
     }
   }
@@ -120,10 +112,8 @@ class LocalAlarmService {
         await _notificationService.scheduleAlarm(updatedAlarm);
       }
       
-      print('알람 수정 완료: ${updatedAlarm.title}');
       return true;
     } catch (e) {
-      print('알람 수정 오류: $e');
       return false;
     }
   }
@@ -138,10 +128,8 @@ class LocalAlarmService {
       final deleteResult = await _storageService.deleteAlarm(alarmId);
       if (!deleteResult) return false;
       
-      print('알람 삭제 완료: $alarmId');
       return true;
     } catch (e) {
-      print('알람 삭제 오류: $e');
       return false;
     }
   }
@@ -163,10 +151,8 @@ class LocalAlarmService {
         }
       }
       
-      print('알람 토글 완료: $alarmId -> $isEnabled');
       return true;
     } catch (e) {
-      print('알람 토글 오류: $e');
       return false;
     }
   }
@@ -201,12 +187,10 @@ class LocalAlarmService {
       final result = await _notificationService.snoozeAlarm(alarmId, snoozeMinutes);
       
       if (result) {
-        print('스누즈 완료: ${alarm.title} - ${snoozeMinutes}분');
       }
       
       return result;
     } catch (e) {
-      print('스누즈 오류: $e');
       return false;
     }
   }
@@ -221,12 +205,11 @@ class LocalAlarmService {
       final clearResult = await _storageService.clearAllAlarms();
       
       if (clearResult) {
-        print('모든 알람 삭제 완료');
       }
       
       return clearResult;
     } catch (e) {
-      print('모든 알람 삭제 오류: $e');
+      // Debug: 모든 알람 삭제 오류: $e
       return false;
     }
   }
@@ -250,7 +233,7 @@ class LocalAlarmService {
         'hasActiveAlarms': enabledAlarms.isNotEmpty,
       };
     } catch (e) {
-      print('알람 통계 조회 오류: $e');
+      // Debug: 알람 통계 조회 오류: $e
       return {};
     }
   }
@@ -273,10 +256,10 @@ class LocalAlarmService {
       // 모든 알람 재스케줄링
       await _notificationService.rescheduleAllAlarms();
       
-      print('알람 데이터 복원 완료');
+      // Debug: 알람 데이터 복원 완료
       return true;
     } catch (e) {
-      print('알람 데이터 복원 오류: $e');
+      // Debug: 알람 데이터 복원 오류: $e
       return false;
     }
   }
@@ -284,20 +267,20 @@ class LocalAlarmService {
   /// 시스템 재시작 후 알람 복구
   Future<bool> restoreAlarmsAfterReboot() async {
     try {
-      print('시스템 재시작 후 알람 복구 시작');
+      // Debug: 시스템 재시작 후 알람 복구 시작
       
       // 모든 활성화된 알람 재스케줄링
       final result = await _notificationService.rescheduleAllAlarms();
       
       if (result) {
-        print('알람 복구 완료');
+        // Debug: 알람 복구 완료
       } else {
-        print('알람 복구 실패');
+        // Debug: 알람 복구 실패
       }
       
       return result;
     } catch (e) {
-      print('알람 복구 오류: $e');
+      // Debug: 알람 복구 오류: $e
       return false;
     }
   }
@@ -326,7 +309,7 @@ class LocalAlarmService {
       
       return result;
     } catch (e) {
-      print('앱 시작 시 알람 서비스 초기화 오류: $e');
+      // Debug: 앱 시작 시 알람 서비스 초기화 오류: $e
       return false;
     }
   }

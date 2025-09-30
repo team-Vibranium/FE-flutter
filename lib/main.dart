@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/alarm_ring_screen.dart';
 import 'screens/login_screen.dart';
@@ -20,8 +21,6 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // 알림 클릭 시 알람 화면으로 이동하는 함수
 void navigateToAlarmScreen(String payload) {
-  print('🔔 navigateToAlarmScreen 호출됨');
-  print('📦 payload: $payload');
 
   try {
     final data = jsonDecode(payload);
@@ -29,11 +28,6 @@ void navigateToAlarmScreen(String payload) {
     final title = data['title'] ?? '알람';
     final alarmId = data['alarmId'];
 
-    print('🔔 알림 데이터 파싱 성공:');
-    print('  - alarmType: $alarmType');
-    print('  - title: $title');
-    print('  - alarmId: $alarmId (백엔드 ID 또는 로컬 ID)');
-    print('🗝️ navigatorKey.currentState: ${navigatorKey.currentState}');
 
     if (navigatorKey.currentState != null) {
       navigatorKey.currentState!.pushNamed(
@@ -46,12 +40,9 @@ void navigateToAlarmScreen(String payload) {
           // alarm 객체는 AlarmRingScreen에서 필요하면 백엔드 API로 조회
         },
       );
-      print('✅ 네비게이션 pushNamed 호출 완료');
     } else {
-      print('❌ navigatorKey.currentState가 null입니다');
     }
   } catch (e) {
-    print('❌ 알림 데이터 파싱 실패: $e');
     // 기본값으로 알람 화면 표시
     if (navigatorKey.currentState != null) {
       navigatorKey.currentState!.pushNamed(
@@ -62,9 +53,7 @@ void navigateToAlarmScreen(String payload) {
           'title': '알람',
         },
       );
-      print(' 기본값으로 네비게이션 완료');
     } else {
-      print('navigatorKey.currentState가 null입니다 (기본값)');
     }
   }
 }
@@ -79,24 +68,23 @@ void main() async {
   // 한국 시간대 설정
   try {
     tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
-    print('🕐 한국 시간대 설정 완료: Asia/Seoul');
   } catch (e) {
-    print('⚠️ 한국 시간대 설정 실패, 기본 시간대 사용: $e');
   }
   
   // 환경변수 파일 로드
   try {
     await dotenv.load(fileName: ".env");
-    print('.env 파일이 로드되었습니다.');
   } catch (e) {
-    print('.env 파일을 찾을 수 없습니다. 기본값을 사용합니다: $e');
   }
   
   // 프로덕션 환경으로 설정
   EnvironmentConfig.setEnvironment(Environment.development); // Mock Repository 사용
   
   // API 서비스 초기화
-  ApiService().initialize();
+  await ApiService().initialize();
+  
+  // 필요한 권한 요청
+  await _requestPermissions();
   
   // 로컬 알람 서비스 초기화
   await LocalAlarmService.initializeOnAppStart();
@@ -119,6 +107,26 @@ void main() async {
       child: AningCallApp(),
     ),
   );
+}
+
+// 필요한 권한 요청 함수
+Future<void> _requestPermissions() async {
+  // 알림 권한
+  await Permission.notification.request();
+  
+  // 정확한 알람 권한 (Android 12+)
+  await Permission.scheduleExactAlarm.request();
+  
+  // 오디오 녹음 권한
+  await Permission.microphone.request();
+  
+  // 시스템 오버레이 권한 (전체화면 알람용)
+  if (await Permission.systemAlertWindow.isDenied) {
+    await Permission.systemAlertWindow.request();
+  }
+  
+  // 부팅 완료 수신 권한
+  await Permission.ignoreBatteryOptimizations.request();
 }
 
 class AningCallApp extends ConsumerWidget {

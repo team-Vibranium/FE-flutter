@@ -19,7 +19,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
   final ScrollController _scrollController = ScrollController();
   String _selectedFilter = 'all'; // all, success, failure
   List<CallLog> _displayedHistory = [];
-  List<CallLog> _allCallHistory = [];
+  final List<CallLog> _allCallHistory = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
   String? _error;
@@ -174,9 +174,9 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
     final seconds = duration.inSeconds % 60;
 
     if (minutes > 0) {
-      return '$minutes분 ${seconds}초';
+      return '$minutes분 $seconds초';
     } else {
-      return '${seconds}초';
+      return '$seconds초';
     }
   }
 
@@ -306,7 +306,7 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceVariant,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.all(4),

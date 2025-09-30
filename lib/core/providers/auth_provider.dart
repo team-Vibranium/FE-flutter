@@ -53,6 +53,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
     
     try {
       if (_apiService.isAuthenticated) {
+        // JWT 토큰 만료 시간 확인
+        final authToken = _apiService.getStoredAuthToken();
+        if (authToken != null && authToken.isExpired) {
+          // 토큰이 만료된 경우 갱신 시도
+          try {
+            final refreshResponse = await _apiService.refreshAccessToken();
+            if (refreshResponse.success && refreshResponse.data != null) {
+              // 토큰 갱신 성공
+              final newAuthToken = refreshResponse.data!;
+              await _apiService.setAuthTokens(newAuthToken);
+            } else {
+              // 토큰 갱신 실패 - 로그아웃
+              await logout();
+              return;
+            }
+          } catch (e) {
+            // 토큰 갱신 중 오류 - 로그아웃
+            await logout();
+            return;
+          }
+        }
+        
+        // 사용자 정보 조회
         final response = await _apiService.user.getMyInfo();
         if (response.success && response.data != null) {
           state = state.copyWith(

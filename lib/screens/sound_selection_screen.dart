@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class SoundSelectionScreen extends StatefulWidget {
   final String currentSound;
@@ -12,44 +13,53 @@ class SoundSelectionScreen extends StatefulWidget {
 class _SoundSelectionScreenState extends State<SoundSelectionScreen> with TickerProviderStateMixin {
   late TabController _tabController;
   String _selectedSound = '';
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
-  // 장르별 음악 데이터
+  // 카테고리별 알람 사운드 데이터
   final Map<String, List<Map<String, dynamic>>> _musicByGenre = {
-    '클래식': [
-      {'name': '기본 알람음', 'duration': '0:30', 'isPlaying': false},
-      {'name': '부드러운 벨', 'duration': '0:45', 'isPlaying': false},
-      {'name': '따뜻한 피아노', 'duration': '1:00', 'isPlaying': false},
-      {'name': '자연의 소리', 'duration': '2:00', 'isPlaying': false},
-      {'name': '모차르트 소나타', 'duration': '1:30', 'isPlaying': false},
-      {'name': '바흐 골드베르크', 'duration': '2:15', 'isPlaying': false},
+    '차분한 소리': [
+      {'name': '더 자라는 듯한 알람소리', 'file': 'sounds/차분한 소리/더 자라는 듯한 알람소리.mp3', 'isPlaying': false},
+      {'name': '동요 소리', 'file': 'sounds/차분한 소리/동요 소리.mp3', 'isPlaying': false},
+      {'name': '몽환적인 소리', 'file': 'sounds/차분한 소리/몽환적인 소리.mp3', 'isPlaying': false},
+      {'name': '알람이라기엔 좋은 소리', 'file': 'sounds/차분한 소리/알람이라기엔 좋은 소리.mp3', 'isPlaying': false},
     ],
-    '자연': [
-      {'name': '새소리', 'duration': '3:00', 'isPlaying': false},
-      {'name': '비 소리', 'duration': '4:00', 'isPlaying': false},
-      {'name': '바다 소리', 'duration': '5:00', 'isPlaying': false},
-      {'name': '숲 소리', 'duration': '3:30', 'isPlaying': false},
-      {'name': '폭포 소리', 'duration': '4:30', 'isPlaying': false},
-      {'name': '바람 소리', 'duration': '2:45', 'isPlaying': false},
+    '전통적인 알람': [
+      {'name': '도도동동동', 'file': 'sounds/전통적인 알람/도도동동동.mp3', 'isPlaying': false},
+      {'name': '무난한 소리', 'file': 'sounds/전통적인 알람/무난한 소리.mp3', 'isPlaying': false},
+      {'name': '뱃고둥 소리', 'file': 'sounds/전통적인 알람/뱃고둥 소리.mp3', 'isPlaying': false},
+      {'name': '보드라운 알람', 'file': 'sounds/전통적인 알람/보드라운 알람.mp3', 'isPlaying': false},
+      {'name': '알람시계소리', 'file': 'sounds/전통적인 알람/알람시계소리.mp3', 'isPlaying': false},
+      {'name': '영화에 나오는 알람소리', 'file': 'sounds/전통적인 알람/영화에 나오는 알람소리.mp3', 'isPlaying': false},
+      {'name': '자연이 담긴 소리', 'file': 'sounds/전통적인 알람/자연이 담긴 소리.mp3', 'isPlaying': false},
+      {'name': '작은 종 소리', 'file': 'sounds/전통적인 알람/작은 종 소리.mp3', 'isPlaying': false},
     ],
-    '현대음악': [
-      {'name': '일렉트로닉', 'duration': '1:20', 'isPlaying': false},
-      {'name': '재즈', 'duration': '2:30', 'isPlaying': false},
-      {'name': '팝송', 'duration': '3:15', 'isPlaying': false},
-      {'name': 'R&B', 'duration': '2:45', 'isPlaying': false},
-      {'name': '록', 'duration': '1:50', 'isPlaying': false},
-      {'name': '힙합', 'duration': '2:10', 'isPlaying': false},
+    '리듬감 있는 소리': [
+      {'name': '발랄한 소리', 'file': 'sounds/리듬감 있는 소리/발랄한 소리.mp3', 'isPlaying': false},
+      {'name': '약간 신나는 소리', 'file': 'sounds/리듬감 있는 소리/약간 신나는 소리.mp3', 'isPlaying': false},
+      {'name': '약간 크리스마스', 'file': 'sounds/리듬감 있는 소리/약간 크리스마스.mp3', 'isPlaying': false},
+      {'name': '오예 비트', 'file': 'sounds/리듬감 있는 소리/오예 비트.mp3', 'isPlaying': false},
+      {'name': '오예 비트2', 'file': 'sounds/리듬감 있는 소리/오예 비트2.mp3', 'isPlaying': false},
+      {'name': '오예 비트4', 'file': 'sounds/리듬감 있는 소리/오예 비트4.mp3', 'isPlaying': false},
+      {'name': '오예오ㅖ', 'file': 'sounds/리듬감 있는 소리/오예오ㅖ.mp3', 'isPlaying': false},
+      {'name': '일렉트로닉', 'file': 'sounds/리듬감 있는 소리/일렉트로닉.mp3', 'isPlaying': false},
+      {'name': '흥겨운 비트', 'file': 'sounds/리듬감 있는 소리/흥겨운 비트.mp3', 'isPlaying': false},
     ],
-    'ASMR': [
-      {'name': '잔잔한 말소리', 'duration': '5:00', 'isPlaying': false},
-      {'name': '펜 소리', 'duration': '3:45', 'isPlaying': false},
-      {'name': '종이 소리', 'duration': '2:30', 'isPlaying': false},
-      {'name': '물소리', 'duration': '4:15', 'isPlaying': false},
-      {'name': '마사지 소리', 'duration': '6:00', 'isPlaying': false},
-      {'name': '호흡 소리', 'duration': '3:20', 'isPlaying': false},
+    '긴급알람': [
+      {'name': '경보음 소리', 'file': 'sounds/긴급알람/경보음 소리.mp3', 'isPlaying': false},
+      {'name': '낮은 사이렌', 'file': 'sounds/긴급알람/낮은 사이렌.mp3', 'isPlaying': false},
+      {'name': '아이폰 안전문자', 'file': 'sounds/긴급알람/아이폰 안전문자.mp3', 'isPlaying': false},
+      {'name': '아지트 습격 경보', 'file': 'sounds/긴급알람/아지트 습격 경보.mp3', 'isPlaying': false},
+      {'name': '안 일어나면 비상', 'file': 'sounds/긴급알람/안 일어나면 비상.mp3', 'isPlaying': false},
+      {'name': '이래도 안 일어나', 'file': 'sounds/긴급알람/이래도 안 일어나.mp3', 'isPlaying': false},
+      {'name': '지나가다가 잘못 건들이', 'file': 'sounds/긴급알람/지나가다가 잘못 건들이.mp3', 'isPlaying': false},
+    ],
+    '이상한 소리': [
+      {'name': '쀠우우우휘우휘우', 'file': 'sounds/이상한 소리/쀠우우우휘우휘우.mp3', 'isPlaying': false},
+      {'name': '삘릴리릴삘릴리릴', 'file': 'sounds/이상한 소리/삘릴리릴삘릴리릴.mp3', 'isPlaying': false},
     ],
   };
 
-  final List<String> _genres = ['클래식', '자연', '현대음악', 'ASMR'];
+  final List<String> _genres = ['차분한 소리', '전통적인 알람', '리듬감 있는 소리', '긴급알람', '이상한 소리'];
 
   @override
   void initState() {
@@ -69,6 +79,7 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
   @override
   void dispose() {
     _tabController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -135,7 +146,7 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
               ),
             ),
             subtitle: Text(
-              '${music['duration']}',
+              '탭하여 미리듣기',
               style: TextStyle(
                 color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey[600],
               ),
@@ -170,7 +181,7 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
     });
   }
 
-  void _togglePlay(String musicName, String genre) {
+  void _togglePlay(String musicName, String genre) async {
     bool isPlaying = false;
     
     setState(() {
@@ -188,7 +199,41 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
     });
     
     if (isPlaying) {
-      _showPlayingMessage(musicName);
+      try {
+        // 실제 음성 파일 재생
+        final music = _musicByGenre[genre]!.firstWhere((m) => m['name'] == musicName);
+        final relativePath = music['file'] as String;
+        final filePath = 'assets/$relativePath';
+        await _audioPlayer.play(AssetSource(filePath));
+        
+        // 재생 완료 시 상태 업데이트
+        _audioPlayer.onPlayerComplete.listen((_) {
+          if (mounted) {
+            setState(() {
+              music['isPlaying'] = false;
+            });
+          }
+        });
+        
+        _showPlayingMessage(musicName);
+      } catch (e) {
+        final music = _musicByGenre[genre]!.firstWhere((m) => m['name'] == musicName);
+        setState(() {
+          music['isPlaying'] = false;
+        });
+        print('오디오 재생 오류: $e');
+        print('파일 경로: ${music['file']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('음성 재생 실패: $e\n파일: ${music['file']}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } else {
+      // 재생 중지
+      await _audioPlayer.stop();
     }
   }
 
@@ -199,15 +244,18 @@ class _SoundSelectionScreenState extends State<SoundSelectionScreen> with Ticker
         duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: '중지',
-          onPressed: () {
-            setState(() {
-              // 모든 음악의 재생 상태를 false로 초기화
-              for (String g in _genres) {
-                for (var music in _musicByGenre[g]!) {
-                  music['isPlaying'] = false;
+          onPressed: () async {
+            await _audioPlayer.stop();
+            if (mounted) {
+              setState(() {
+                // 모든 음악의 재생 상태를 false로 초기화
+                for (String g in _genres) {
+                  for (var music in _musicByGenre[g]!) {
+                    music['isPlaying'] = false;
+                  }
                 }
-              }
-            });
+              });
+            }
           },
         ),
       ),

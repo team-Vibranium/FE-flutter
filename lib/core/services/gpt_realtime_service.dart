@@ -63,7 +63,7 @@ class GPTRealtimeService {
   int? _currentAlarmId;
   int? _currentCallId;
   int _snoozeCount = 0;
-  int _maxSnoozeCount = 3;
+  final int _maxSnoozeCount = 3;
   String? _originalInstructions; // 원래 알람 지시사항 저장
   bool _userHasSpokenInSession = false; // 현재 세션에서 사용자가 발화했는지 여부
   Timer? _ephemeralRefreshTimer;
@@ -722,7 +722,7 @@ class GPTRealtimeService {
       );
 
       _snoozeCount++;
-      print('✅ 음성 스누즈 처리 완료: ${_snoozeCount}/${_maxSnoozeCount}');
+      print('✅ 음성 스누즈 처리 완료: $_snoozeCount/$_maxSnoozeCount');
 
     } catch (e) {
       print('❌ 음성 스누즈 처리 오류: $e');
@@ -798,13 +798,13 @@ class GPTRealtimeService {
 
       // 스누즈 한계 확인
       if (_snoozeCount >= _maxSnoozeCount) {
-        print('❌ 스누즈 한계 도달: ${_snoozeCount}/${_maxSnoozeCount}');
+        print('❌ 스누즈 한계 도달: $_snoozeCount/$_maxSnoozeCount');
         onError?.call('스누즈 한계에 도달했습니다. 알람이 실패로 처리됩니다.');
         await endMorningCallWithFailure();
         return;
       }
 
-      print('😴 전화 알람 스누즈 요청: ${snoozeMinutes}분 (${_snoozeCount + 1}/${_maxSnoozeCount})');
+      print('😴 전화 알람 스누즈 요청: $snoozeMinutes분 (${_snoozeCount + 1}/$_maxSnoozeCount)');
       
       // 1. 현재 통화를 FAIL_SNOOZE로 종료
       await _endCall('FAIL_SNOOZE', _snoozeCount + 1);
@@ -816,13 +816,13 @@ class GPTRealtimeService {
       _snoozeCount++;
       
       // 4. 알람 지시사항에 스누즈 정보 추가
-      final snoozeInstructions = '${_originalInstructions ?? "부드럽게 깨워주세요"} (스누즈 ${_snoozeCount}회)';
+      final snoozeInstructions = '${_originalInstructions ?? "부드럽게 깨워주세요"} (스누즈 $_snoozeCount회)';
       await _updateAlarmInstructions(alarmId, snoozeInstructions);
       
       // 5. 스누즈 시간만큼 대기 후 다시 알람 시작
       _scheduleSnoozeRestart(alarmId, snoozeMinutes);
 
-      print('✅ 전화 알람 스누즈 처리 완료 - ${snoozeMinutes}분 후 다시 시작');
+      print('✅ 전화 알람 스누즈 처리 완료 - $snoozeMinutes분 후 다시 시작');
       onSnoozeRequested?.call(alarmId, snoozeMinutes);
       
     } catch (e) {
@@ -969,13 +969,13 @@ class GPTRealtimeService {
         throw Exception('일반 알람에서만 일반 알람 스누즈가 가능합니다');
       }
 
-      print('😴 일반 알람 스누즈 요청: ${snoozeMinutes}분');
+      print('😴 일반 알람 스누즈 요청: $snoozeMinutes분');
       await endRegularAlarm();
 
       // 스누즈 시간만큼 대기 후 다시 알람 시작
       _scheduleSnoozeRestart(alarmId, snoozeMinutes);
 
-      print('✅ 일반 알람 스누즈 처리 완료 - ${snoozeMinutes}분 후 다시 시작');
+      print('✅ 일반 알람 스누즈 처리 완료 - $snoozeMinutes분 후 다시 시작');
       onSnoozeRequested?.call(alarmId, snoozeMinutes);
       
     } catch (e) {
@@ -1087,7 +1087,7 @@ class GPTRealtimeService {
 
     _isReconnecting = true;
     _reconnectAttempts += 1;
-    print('🔁 재연결 시도 ${_reconnectAttempts}/$_maxReconnectAttempts');
+    print('🔁 재연결 시도 $_reconnectAttempts/$_maxReconnectAttempts');
 
     try {
       await _cleanupWebRTC();

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -17,6 +20,22 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+    }
+
+    signingConfigs {
+        create("release") {
+            if (project.hasProperty("key.properties")) {
+                val keyPropertiesFile = rootProject.file("android/key.properties")
+                if (keyPropertiesFile.exists()) {
+                    val keyProperties = Properties()
+                    keyProperties.load(FileInputStream(keyPropertiesFile))
+                    storeFile = file(keyProperties["storeFile"] as String)
+                    storePassword = keyProperties["storePassword"] as String
+                    keyAlias = keyProperties["keyAlias"] as String
+                    keyPassword = keyProperties["keyPassword"] as String
+                }
+            }
+        }
     }
 
     // ✅ Kotlin DSL 문법으로 수정

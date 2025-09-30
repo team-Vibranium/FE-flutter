@@ -140,11 +140,11 @@ class LoginResponse {
   String get refreshToken => token; // 현재 구조에서는 같은 토큰 사용
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
-    print('🔍 LoginResponse.fromJson 시작');
-    print('🔍 전체 json: $json');
-    print('🔍 json[\'user\']: ${json['user']}');
-    print('🔍 json[\'token\']: ${json['token']}');
-    print('🔍 json[\'user\'] 타입: ${json['user'].runtimeType}');
+    // Debug: LoginResponse.fromJson 시작
+    // Debug: 전체 json: $json
+    // Debug: json['user']: ${json['user']}
+    // Debug: json['token']: ${json['token']}
+    // Debug: json['user'] 타입: ${json['user'].runtimeType}
     
     return LoginResponse(
       user: User.fromJson(json['user'] as Map<String, dynamic>),
@@ -981,11 +981,13 @@ class SpendPointsRequest {
 
 /// 포인트 획득 요청 모델
 class EarnPointsRequest {
+  final String type; // "GRADE" 또는 "CONSUMPTION"
   final int amount;
   final String description;
   final Map<String, dynamic>? metadata;
 
   const EarnPointsRequest({
+    required this.type,
     required this.amount,
     required this.description,
     this.metadata,
@@ -993,6 +995,7 @@ class EarnPointsRequest {
 
   Map<String, dynamic> toJson() {
     return {
+      'type': type,
       'amount': amount,
       'description': description,
       'metadata': metadata,

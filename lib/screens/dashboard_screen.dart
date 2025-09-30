@@ -314,8 +314,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     // 다음 알람까지 남은 시간 계산 (한국 시간대 직접 지정)
     final seoul = tz.getLocation('Asia/Seoul');
     final now = tz.TZDateTime.now(seoul);
-    print('🕐 현재 시간 (한국): $now');
-    print('🕐 시간대: ${seoul.name}');
     DateTime? nextAlarmTime;
 
     for (final alarm in alarms.where((alarm) => alarm.isEnabled)) {
@@ -476,8 +474,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
     // 한국 시간대 직접 지정
     final seoul = tz.getLocation('Asia/Seoul');
     final now = tz.TZDateTime.now(seoul);
-    print('🕐 _getRemainingTime - 현재 시간 (한국): $now');
-    print('🕐 _getRemainingTime - 알람 시간: $alarmTime');
     final timeParts = alarmTime.split(':');
     final hour = int.parse(timeParts[0]);
     final minute = int.parse(timeParts[1]);
@@ -650,21 +646,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                                     : Colors.grey[600],
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
-                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
+  
 
   Widget _buildCompactAlarmCard(Alarm alarm, int originalIndex, int displayIndex) {
     // 남은 시간 계산 (더미 데이터)

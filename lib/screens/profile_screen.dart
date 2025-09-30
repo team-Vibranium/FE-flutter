@@ -43,18 +43,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       final apiService = ApiService();
       
-      // 병렬로 데이터 로드
+      // 병렬로 데이터 로드 (개요 + 최근 30일 통계로 현재 연속일 계산)
       final results = await Future.wait([
-        apiService.statistics.getStatisticsSummary(),
+        apiService.user.getMyInfo(),
+        apiService.statistics.getOverview(),
+        apiService.statistics.getRecentDaysStatistics(30),
         apiService.points.getPointBalance(),
-        Future.value(authState.user), // 현재 사용자 정보
+        Future.value(authState.user), // 현재 사용자 정보(백업)
       ]);
 
       if (mounted) {
         setState(() {
-          _user = results[2] as User;
-          _statisticsSummary = (results[0] as ApiResponse).success ? (results[0] as ApiResponse).data as Map<String, dynamic>? : null;
-          _pointSummary = (results[1] as ApiResponse).success ? (results[1] as ApiResponse).data as Map<String, dynamic>? : null;
+          final meResp = results[0] as ApiResponse;
+          _user = meResp.success && meResp.data != null ? meResp.data as User : results[4] as User;
+          final overviewResp = results[1] as ApiResponse;
+          final recentResp = results[2] as ApiResponse;
+          _pointSummary = (results[3] as ApiResponse).success ? (results[3] as ApiResponse).data as Map<String, dynamic>? : null;
+
+          double successRate = 0.0;
+          if (overviewResp.success && overviewResp.data != null) {
+            final o = overviewResp.data as StatisticsOverview;
+            print('마이페이지 통계 개요 - successRate: ${o.successRate}, totalAlarms: ${o.totalAlarms}');
+            successRate = o.totalAlarms > 0 ? o.successRate : 0.0; // 0.0~1.0
+          }
+
+          int consecutiveDays = 0;
+          if (recentResp.success && recentResp.data != null) {
+            final p = recentResp.data as PeriodStatistics;
+            // 현재 연속 성공일 계산: 최근 날짜부터 성공 알람 있는 날까지 카운트
+            final List<DailyStatistics> days = p.dailyStats;
+            days.sort((a, b) => b.date.compareTo(a.date));
+            for (final d in days) {
+              if (d.alarmCount > 0 && d.successCount > 0) {
+                consecutiveDays++;
+              } else if (d.alarmCount > 0) {
+                break;
+              }
+            }
+          }
+
+          _statisticsSummary = {
+            'successRate': successRate,
+            'consecutiveDays': consecutiveDays,
+          };
           
           // 업적 데이터 생성 (실제 데이터 기반)
           _achievements = _generateAchievements();
@@ -171,9 +202,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 16),
             _buildStatsSummary(),
             const SizedBox(height: 16),
-            _buildMenuSection(),
-            const SizedBox(height: 16),
             _buildAchievementsSection(),
+            const SizedBox(height: 16),
+            _buildMenuSection(),
           ],
         ),
       ),
@@ -192,23 +223,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // 프로필 서클 누르면 캐릭터 꾸미기로 이동
                     Navigator.pushNamed(context, '/avatar_customize');
                   },
                   child: Stack(
                     children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: Text(
-                          (_user?.nickname ?? 'U')[0],
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                      _buildAvatarCircle(),
                       Positioned(
                         bottom: 0,
                         right: 0,
@@ -277,17 +296,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _editProfile,
+                  onPressed: () => Navigator.pushNamed(context, '/avatar_customize'),
                   icon: Icon(
                     Icons.edit,
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
-                  tooltip: '프로필 수정',
+                  tooltip: '아바타 꾸미기',
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarCircle() {
+    // 아바타 이미지/아이콘은 points/selectedAvatar를 조합해 표시
+    final avatarId = _user?.selectedAvatar ?? 'default';
+    IconData icon;
+    Color color;
+    switch (avatarId) {
+      case 'cat':
+        icon = Icons.pets; color = Colors.orange; break;
+      case 'robot':
+        icon = Icons.smart_toy; color = Colors.grey; break;
+      case 'star':
+        icon = Icons.star; color = Colors.yellow; break;
+      case 'heart':
+        icon = Icons.favorite; color = Colors.red; break;
+      case 'diamond':
+        icon = Icons.diamond; color = Colors.cyan; break;
+      case 'crown':
+        icon = Icons.workspace_premium; color = Colors.amber; break;
+      case 'rainbow':
+        icon = Icons.auto_awesome; color = Colors.purple; break;
+      default:
+        icon = Icons.person; color = Theme.of(context).colorScheme.primary;
+    }
+    return CircleAvatar(
+      radius: 40,
+      backgroundColor: color.withOpacity(0.15),
+      child: CircleAvatar(
+        radius: 36,
+        backgroundColor: Colors.white,
+        child: Icon(icon, size: 36, color: color),
       ),
     );
   }
@@ -369,12 +422,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Card(
       child: Column(
         children: [
-          _buildMenuTile(
-            icon: Icons.alarm,
-            title: '알람 설정',
-            onTap: _alarmSettings,
-          ),
-          const Divider(height: 1),
           _buildMenuTile(
             icon: Icons.help,
             title: '도움말',
@@ -529,126 +576,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _editProfile() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '프로필 수정',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('닉네임 변경'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(context);
-                  _changeNickname();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.lock),
-                title: const Text('비밀번호 변경'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(context);
-                  _changePassword();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications),
-                title: const Text('알림 설정'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(context);
-                  _notificationSettings();
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // (_editProfile) 사용하지 않아 제거
 
-  void _changeNickname() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('닉네임 변경'),
-        content: const Text('닉네임 변경 기능은 추후 구현됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
+  // (_changeNickname) 미사용
 
-  void _changePassword() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('비밀번호 변경'),
-        content: const Text('비밀번호 변경 기능은 추후 구현됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
+  // (_changePassword) 미사용
 
-  void _alarmSettings() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('알람 설정'),
-        content: const Text('알람 설정 기능은 추후 구현됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
+  // (_alarmSettings) 제거
 
-  void _notificationSettings() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('알림 설정'),
-        content: const Text('알림 설정 기능은 추후 구현됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
+  // (_notificationSettings) 제거
 
   void _showHelp() {
     showDialog(

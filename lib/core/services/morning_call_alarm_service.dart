@@ -22,7 +22,6 @@ class MorningCallAlarmService {
   /// 사용자 이름 업데이트
   void updateUserName(String userName) {
     _userName = userName;
-    print('👤 사용자 이름 업데이트: $userName');
   }
 
   /// 서비스 초기화 
@@ -49,21 +48,16 @@ class MorningCallAlarmService {
         await _gptService.initialize(gptApiKey);
         // GPT 서비스 콜백 설정
         _setupGPTCallbacks();
-        print('🤖 GPT 서비스 초기화 완료');
       } catch (e) {
-        print('⚠️ GPT 서비스 초기화 실패: $e (기본 알람 기능은 사용 가능)');
       }
     } else {
-      print('⚠️ GPT API 키가 없습니다. 기본 알람 기능만 사용 가능합니다.');
     }
     
     _isInitialized = true;
-    print('🌅 모닝콜 알람 서비스 초기화 완료');
   }
 
   /// 알림 권한 요청
   Future<void> _requestNotificationPermissions() async {
-    print('🔔 알림 권한 요청 시작...');
     
     // 현재 권한 상태 먼저 확인
     final currentStatus = await Permission.notification.status;
@@ -169,7 +163,7 @@ class MorningCallAlarmService {
     };
 
     _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
-      print('😴 스누즈 요청됨: 알람 ID $alarmId, ${snoozeMinutes}분');
+      print('😴 스누즈 요청됨: 알람 ID $alarmId, $snoozeMinutes분');
       // 스누즈 처리 로직
     };
   }

@@ -4,6 +4,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'mission_screen.dart';
 import '../core/models/alarm.dart';
 import '../core/services/gpt_realtime_service.dart';
+import '../core/services/points_api_service.dart';
+import '../core/models/api_models.dart';
 
 class AlarmRingScreen extends StatefulWidget {
   final String alarmType;
@@ -150,11 +152,17 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: widget.alarmType == '전화알람' 
-        ? _buildCallInterface()
-        : _buildRegularAlarmInterface(),
+    return WillPopScope(
+      onWillPop: () async {
+        // 알람 화면에서는 뒤로가기 비활성화
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: widget.alarmType == '전화알람' 
+          ? _buildCallInterface()
+          : _buildRegularAlarmInterface(),
+      ),
     );
   }
 
@@ -317,7 +325,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
           if (_isCallAccepted) ...[
             const SizedBox(height: 8),
             Text(
-              '무발화 ${_silenceCountdown}초 후 종료',
+              '무발화 $_silenceCountdown초 후 종료',
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.red,
@@ -398,7 +406,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   // (대화 로그 프리뷰 비표시)
 
   Widget _buildVoiceWaveform() {
-    return Container(
+    return SizedBox(
       width: 200,
       height: 100,
       child: Row(
@@ -559,7 +567,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
         };
 
         _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
-          print('😴 스누즈 요청됨: ${snoozeMinutes}분');
+          print('😴 스누즈 요청됨: $snoozeMinutes분');
           // 스누즈 처리 (GPT 서비스에서 자동 처리됨)
         };
 
@@ -660,7 +668,7 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('스누즈 ${_snoozeCount}/${_maxSnoozeCount} - 5분 후 다시 알람이 울립니다'),
+          content: Text('스누즈 $_snoozeCount/$_maxSnoozeCount - 5분 후 다시 알람이 울립니다'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -698,7 +706,54 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       MaterialPageRoute(
         builder: (context) => MissionScreen(
           alarmTitle: '${widget.alarmType} 알람',
-          onMissionCompleted: () {
+          onMissionCompleted: () async {
+            // 미션 완료 시 포인트 획득
+            const basePoints = 10;
+            const bonusPoints = 0; // 점수에 따른 보너스 (필요 시 계산)
+
+            try {
+              final pointsService = PointsApiService();
+              final missionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+              // 1. 기본 포인트 - GRADE (일일 제한 적용)
+              await pointsService.earnPoints(EarnPointsRequest(
+                type: 'GRADE',
+                amount: basePoints,
+                description: '미션 완료 (등급 포인트)',
+                metadata: {'missionId': missionId, 'reason': 'mission_complete', 'pointType': 'base'},
+              ));
+              print('✅ 서버 GRADE 기본 포인트 획득: +$basePoints');
+
+              // 2. 기본 포인트 - CONSUMPTION (일일 제한 적용)
+              await pointsService.earnPoints(EarnPointsRequest(
+                type: 'CONSUMPTION',
+                amount: basePoints,
+                description: '미션 완료 (소비 포인트)',
+                metadata: {'missionId': missionId, 'reason': 'mission_complete', 'pointType': 'base'},
+              ));
+              print('✅ 서버 CONSUMPTION 기본 포인트 획득: +$basePoints');
+
+              // 3. 보너스 포인트가 있으면 별도 전송 (일일 제한 제외)
+              if (bonusPoints > 0) {
+                await pointsService.earnPoints(EarnPointsRequest(
+                  type: 'GRADE',
+                  amount: bonusPoints,
+                  description: '미션 완료 보너스 (등급 포인트)',
+                  metadata: {'missionId': missionId, 'reason': 'mission_bonus', 'pointType': 'bonus'},
+                ));
+                print('✅ 서버 GRADE 보너스 포인트 획득: +$bonusPoints');
+
+                await pointsService.earnPoints(EarnPointsRequest(
+                  type: 'CONSUMPTION',
+                  amount: bonusPoints,
+                  description: '미션 완료 보너스 (소비 포인트)',
+                  metadata: {'missionId': missionId, 'reason': 'mission_bonus', 'pointType': 'bonus'},
+                ));
+                print('✅ 서버 CONSUMPTION 보너스 포인트 획득: +$bonusPoints');
+              }
+            } catch (e) {
+              print('⚠️ 포인트 획득 실패: $e');
+            }
             Navigator.pop(context);
           },
         ),
@@ -723,7 +778,54 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       MaterialPageRoute(
         builder: (context) => MissionScreen(
           alarmTitle: '${widget.alarmType} 알람',
-          onMissionCompleted: () {
+          onMissionCompleted: () async {
+            // 미션 완료 시 포인트 획득
+            const basePoints = 10;
+            const bonusPoints = 0; // 점수에 따른 보너스 (필요 시 계산)
+
+            try {
+              final pointsService = PointsApiService();
+              final missionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+              // 1. 기본 포인트 - GRADE (일일 제한 적용)
+              await pointsService.earnPoints(EarnPointsRequest(
+                type: 'GRADE',
+                amount: basePoints,
+                description: '미션 완료 (등급 포인트)',
+                metadata: {'missionId': missionId, 'reason': 'mission_complete', 'pointType': 'base'},
+              ));
+              print('✅ 서버 GRADE 기본 포인트 획득: +$basePoints');
+
+              // 2. 기본 포인트 - CONSUMPTION (일일 제한 적용)
+              await pointsService.earnPoints(EarnPointsRequest(
+                type: 'CONSUMPTION',
+                amount: basePoints,
+                description: '미션 완료 (소비 포인트)',
+                metadata: {'missionId': missionId, 'reason': 'mission_complete', 'pointType': 'base'},
+              ));
+              print('✅ 서버 CONSUMPTION 기본 포인트 획득: +$basePoints');
+
+              // 3. 보너스 포인트가 있으면 별도 전송 (일일 제한 제외)
+              if (bonusPoints > 0) {
+                await pointsService.earnPoints(EarnPointsRequest(
+                  type: 'GRADE',
+                  amount: bonusPoints,
+                  description: '미션 완료 보너스 (등급 포인트)',
+                  metadata: {'missionId': missionId, 'reason': 'mission_bonus', 'pointType': 'bonus'},
+                ));
+                print('✅ 서버 GRADE 보너스 포인트 획득: +$bonusPoints');
+
+                await pointsService.earnPoints(EarnPointsRequest(
+                  type: 'CONSUMPTION',
+                  amount: bonusPoints,
+                  description: '미션 완료 보너스 (소비 포인트)',
+                  metadata: {'missionId': missionId, 'reason': 'mission_bonus', 'pointType': 'bonus'},
+                ));
+                print('✅ 서버 CONSUMPTION 보너스 포인트 획득: +$bonusPoints');
+              }
+            } catch (e) {
+              print('⚠️ 포인트 획득 실패: $e');
+            }
             Navigator.pop(context);
           },
         ),

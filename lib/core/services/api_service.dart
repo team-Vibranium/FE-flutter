@@ -1,4 +1,4 @@
-import '../models/api_models.dart';
+import '../models/api_models.dart' as models;
 import '../environment/environment.dart';
 import 'base_api_service.dart';
 import 'auth_api_service.dart';
@@ -36,14 +36,25 @@ class ApiService {
 
   bool _isInitialized = false;
 
+  // BaseApiService 메서드들을 노출하는 getter들
+  bool get isAuthenticated => _baseApi.accessToken != null;
+  String? get accessToken => _baseApi.accessToken;
+  String? get refreshToken => _baseApi.refreshToken;
+  
+  // BaseApiService 메서드들을 노출하는 메서드들
+  models.AuthToken? getStoredAuthToken() => _baseApi.getStoredAuthToken();
+  Future<void> setAuthTokens(models.AuthToken authToken) => _baseApi.setAuthTokens(authToken);
+  Future<void> clearAuthTokens() => _baseApi.clearAuthTokens();
+  Future<models.ApiResponse<models.AuthToken>> refreshAccessToken() => _baseApi.refreshAccessToken();
+
   /// API 서비스 초기화
-  void initialize() {
+  Future<void> initialize() async {
     if (_isInitialized) return;
 
     print('🚀 API 서비스 초기화 시작...');
 
     // 기본 HTTP 클라이언트 초기화
-    _baseApi.initialize();
+    await _baseApi.initialize();
     print('✅ BaseApiService 초기화 완료');
 
     // 각 도메인 서비스 초기화
@@ -90,19 +101,6 @@ class ApiService {
     _baseApi.setRefreshToken(refreshToken);
   }
 
-  /// 인증 토큰 제거 (로그아웃 시 사용)
-  void clearAuthTokens() {
-    _baseApi.clearAuthTokens();
-  }
-
-  /// 현재 인증 상태 확인
-  bool get isAuthenticated => _baseApi.accessToken != null;
-
-  /// 현재 액세스 토큰
-  String? get accessToken => _baseApi.accessToken;
-
-  /// 현재 리프레시 토큰
-  String? get refreshToken => _baseApi.refreshToken;
 
   /// 리소스 정리
   void dispose() {
@@ -235,9 +233,9 @@ class ApiService {
           if (result['isCompleted'] == true) {
             final missionPointResult = await points.earnPointsForMissionComplete(
               missionId: missionResult.data!['id'].toString(),
-              missionType: MissionType.values.firstWhere(
+              missionType: models.MissionType.values.firstWhere(
                 (e) => e.name == missionType,
-                orElse: () => MissionType.MATH,
+                orElse: () => models.MissionType.MATH,
               ),
               score: result['score'] ?? 0,
             );
@@ -275,7 +273,7 @@ class ApiService {
       // 닉네임 변경
       if (nickname != null) {
         final nicknameResult = await user.changeNickname(
-          NicknameChangeRequest(newNickname: nickname),
+          models.NicknameChangeRequest(newNickname: nickname),
         );
         results['nickname'] = nicknameResult.data;
       }
@@ -283,7 +281,7 @@ class ApiService {
       // 비밀번호 변경
       if (currentPassword != null && newPassword != null) {
         final passwordResult = await user.changePassword(
-          PasswordChangeRequest(
+          models.PasswordChangeRequest(
             currentPassword: currentPassword,
             newPassword: newPassword,
             confirmPassword: newPassword, // 일반적으로 같은 값

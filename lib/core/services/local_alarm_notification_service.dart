@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -136,6 +135,8 @@ class LocalAlarmNotificationService {
         sound: alarm.soundPath != null 
             ? RawResourceAndroidNotificationSound(alarm.soundPath!)
             : null,
+        ongoing: true, // 알람이 계속 울리도록 설정
+        autoCancel: false, // 사용자가 직접 해제할 때까지 계속 울림
         actions: alarm.snoozeEnabled ? [
           const AndroidNotificationAction(
             'snooze',
@@ -199,7 +200,7 @@ class LocalAlarmNotificationService {
         await _scheduleRepeatingAlarm(alarm);
       }
       
-      debugPrint('알람 스케줄링 완료: ${alarm.title} at ${nextAlarmTime}');
+      debugPrint('알람 스케줄링 완료: ${alarm.title} at $nextAlarmTime');
       return true;
     } catch (e) {
       debugPrint('알람 스케줄링 오류: $e');
@@ -380,7 +381,7 @@ class LocalAlarmNotificationService {
         await scheduleAlarm(alarm);
       }
       
-      debugPrint('스누즈 설정 완료: ${alarm.title} - ${snoozeMinutes}분 후');
+      debugPrint('스누즈 설정 완료: ${alarm.title} - $snoozeMinutes분 후');
       return true;
     } catch (e) {
       debugPrint('스누즈 설정 오류: $e');

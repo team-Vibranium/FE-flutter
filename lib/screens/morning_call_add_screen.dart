@@ -20,7 +20,7 @@ class _MorningCallAddScreenState extends ConsumerState<MorningCallAddScreen> {
   final _titleController = TextEditingController();
   
   TimeOfDay _selectedTime = TimeOfDay.now();
-  List<bool> _selectedDays = List.filled(7, false);
+  final List<bool> _selectedDays = List.filled(7, false);
   bool _isEnabled = true;
   bool _isLoading = false;
   
@@ -113,7 +113,7 @@ class _MorningCallAddScreenState extends ConsumerState<MorningCallAddScreen> {
             userName: '사용자',
           );
         } catch (e) {
-          print('모닝콜 서비스 초기화 오류: $e');
+          // Debug: 모닝콜 서비스 초기화 오류: $e
           // API 키가 없어도 기본 알람 기능은 사용할 수 있도록 처리
         }
       }
@@ -283,7 +283,7 @@ class _MorningCallAddScreenState extends ConsumerState<MorningCallAddScreen> {
                 title: const Text('알람 활성화'),
                 subtitle: const Text('이 모닝콜을 활성화합니다'),
                 value: _isEnabled,
-                activeColor: Colors.indigo,
+                activeThumbColor: Colors.indigo,
                 onChanged: (value) {
                   setState(() {
                     _isEnabled = value;

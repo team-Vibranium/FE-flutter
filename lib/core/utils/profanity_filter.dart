@@ -115,7 +115,7 @@ class ProfanityFilter {
       _profanityPatterns.add(regExp);
     } catch (e) {
       // 잘못된 정규식 패턴인 경우 무시
-      print('Invalid regex pattern: $pattern');
+      // Debug: Invalid regex pattern: $pattern
     }
   }
 

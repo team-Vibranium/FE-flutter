@@ -89,11 +89,21 @@ class PointsApiService {
     required String alarmId,
     int points = 10,
   }) async {
-    return earnPoints(EarnPointsRequest(
+    // 기본 포인트를 GRADE와 CONSUMPTION 모두에 반영 (일일 제한은 서버에서 기본 포인트에만 적용)
+    // 반환값은 마지막 호출 응답으로 유지해 기존 사용처와의 호환성 보장
+    ApiResponse<PointTransaction> lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'GRADE',
       amount: points,
       description: '알람 성공',
-      metadata: {'alarmId': alarmId, 'reason': 'alarm_success'},
+      metadata: {'alarmId': alarmId, 'reason': 'alarm_success', 'pointType': 'base'},
     ));
+    lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'CONSUMPTION',
+      amount: points,
+      description: '알람 성공',
+      metadata: {'alarmId': alarmId, 'reason': 'alarm_success', 'pointType': 'base'},
+    ));
+    return lastResponse;
   }
 
   /// 미션 완료로 포인트 획득
@@ -105,20 +115,64 @@ class PointsApiService {
   }) async {
     // 점수에 따른 보너스 포인트 계산
     final bonusPoints = (score / 10).floor();
-    final totalPoints = basePoints + bonusPoints;
 
-    return earnPoints(EarnPointsRequest(
-      amount: totalPoints,
+    // 1) 기본 포인트 전송: GRADE, CONSUMPTION (일일 제한 적용 대상)
+    ApiResponse<PointTransaction> lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'GRADE',
+      amount: basePoints,
       description: '미션 완료 (${missionType.name})',
       metadata: {
         'missionId': missionId,
         'missionType': missionType.name,
         'score': score,
-        'basePoints': basePoints,
-        'bonusPoints': bonusPoints,
+        'pointType': 'base',
         'reason': 'mission_complete',
       },
     ));
+
+    lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'CONSUMPTION',
+      amount: basePoints,
+      description: '미션 완료 (${missionType.name})',
+      metadata: {
+        'missionId': missionId,
+        'missionType': missionType.name,
+        'score': score,
+        'pointType': 'base',
+        'reason': 'mission_complete',
+      },
+    ));
+
+    // 2) 보너스 포인트가 있으면 별도 전송: GRADE, CONSUMPTION (일일 제한 제외)
+    if (bonusPoints > 0) {
+      lastResponse = await earnPoints(EarnPointsRequest(
+        type: 'GRADE',
+        amount: bonusPoints,
+        description: '미션 완료 보너스 (${missionType.name})',
+        metadata: {
+          'missionId': missionId,
+          'missionType': missionType.name,
+          'score': score,
+          'pointType': 'bonus',
+          'reason': 'mission_bonus',
+        },
+      ));
+
+      lastResponse = await earnPoints(EarnPointsRequest(
+        type: 'CONSUMPTION',
+        amount: bonusPoints,
+        description: '미션 완료 보너스 (${missionType.name})',
+        metadata: {
+          'missionId': missionId,
+          'missionType': missionType.name,
+          'score': score,
+          'pointType': 'bonus',
+          'reason': 'mission_bonus',
+        },
+      ));
+    }
+
+    return lastResponse;
   }
 
   /// 연속 알람 성공으로 포인트 획득
@@ -128,18 +182,56 @@ class PointsApiService {
   }) async {
     // 연속 일수에 따른 보너스 계산
     final bonusPoints = (streakDays / 7).floor() * 10;
-    final totalPoints = basePoints + bonusPoints;
 
-    return earnPoints(EarnPointsRequest(
-      amount: totalPoints,
+    // 1) 기본 포인트 전송: GRADE, CONSUMPTION
+    ApiResponse<PointTransaction> lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'GRADE',
+      amount: basePoints,
       description: '$streakDays일 연속 성공 보너스',
       metadata: {
         'streakDays': streakDays,
-        'basePoints': basePoints,
-        'bonusPoints': bonusPoints,
+        'pointType': 'base',
         'reason': 'streak_bonus',
       },
     ));
+
+    lastResponse = await earnPoints(EarnPointsRequest(
+      type: 'CONSUMPTION',
+      amount: basePoints,
+      description: '$streakDays일 연속 성공 보너스',
+      metadata: {
+        'streakDays': streakDays,
+        'pointType': 'base',
+        'reason': 'streak_bonus',
+      },
+    ));
+
+    // 2) 보너스 포인트 전송 (있을 경우): GRADE, CONSUMPTION
+    if (bonusPoints > 0) {
+      lastResponse = await earnPoints(EarnPointsRequest(
+        type: 'GRADE',
+        amount: bonusPoints,
+        description: '$streakDays일 연속 성공 보너스 (보너스)',
+        metadata: {
+          'streakDays': streakDays,
+          'pointType': 'bonus',
+          'reason': 'streak_bonus',
+        },
+      ));
+
+      lastResponse = await earnPoints(EarnPointsRequest(
+        type: 'CONSUMPTION',
+        amount: bonusPoints,
+        description: '$streakDays일 연속 성공 보너스 (보너스)',
+        metadata: {
+          'streakDays': streakDays,
+          'pointType': 'bonus',
+          'reason': 'streak_bonus',
+        },
+      ));
+    }
+
+    return lastResponse;
   }
 
   /// 스킨 구매로 포인트 사용

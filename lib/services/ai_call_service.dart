@@ -65,7 +65,7 @@ class AICallService {
 
   // 서버 통화 관리 관련
   int? _currentCallId;
-  DateTime? _callStartTime;
+  // DateTime? _callStartTime; // Unused field removed
   int _snoozeCount = 0;
   static const int _maxSnoozeCount = 3;
 
@@ -108,13 +108,13 @@ class AICallService {
       final apiService = ApiService();
       // 우선 전달받은 alarmId로 시도하고, 실패 시 서버 알람을 생성해 재시도
       int? targetAlarmId = alarmId;
-      Future<ApiResponse<SessionResponse>> _tryCreateSession(int id) {
+      Future<ApiResponse<SessionResponse>> tryCreateSession(int id) {
         return apiService.realtime.createSession(alarmId: id, snoozeCount: _snoozeCount);
       }
 
       ApiResponse<SessionResponse> sessionResponse;
       if (targetAlarmId != null) {
-        sessionResponse = await _tryCreateSession(targetAlarmId);
+        sessionResponse = await tryCreateSession(targetAlarmId);
       } else {
         // 전달된 알람 ID가 없으면 실패로 간주하여 아래 생성 경로로 진행
         sessionResponse = ApiResponse.error('alarmId not provided');
@@ -133,7 +133,7 @@ class AICallService {
           if (createRes.success && createRes.data != null) {
             targetAlarmId = createRes.data!.alarmId;
             debugPrint('AICallService: 서버 알람 생성 성공 alarmId=$targetAlarmId, 세션 재시도');
-            sessionResponse = await _tryCreateSession(targetAlarmId!);
+            sessionResponse = await tryCreateSession(targetAlarmId);
           } else {
             throw Exception('서버 알람 생성 실패: ${createRes.message ?? createRes.error}');
           }
@@ -149,7 +149,7 @@ class AICallService {
         );
         if (startResponse.success && startResponse.data != null) {
           _currentCallId = startResponse.data!.callId;
-          _callStartTime = startResponse.data!.callStart;
+          // _callStartTime = startResponse.data!.callStart; // Removed unused field
           debugPrint('AICallService: 서버 통화 시작 기록 생성됨 - callId=$_currentCallId');
         } else {
           debugPrint('AICallService: 서버 통화 시작 기록 생성 실패: ${startResponse.message}');
@@ -270,7 +270,7 @@ class AICallService {
           await endCall();
         } else {
           // 스누즈 성공 - 사용자에게 알리기
-          final message = '스누즈가 적용되었습니다 (${_snoozeCount}/${_maxSnoozeCount})';
+          final message = '스누즈가 적용되었습니다 ($_snoozeCount/$_maxSnoozeCount)';
           _updateState(_currentState, message);
 
           // AI에게 스누즈 상황 알리기
@@ -609,7 +609,7 @@ class AICallService {
     _currentTranscript = '';
     _snoozeCount = 0;
     _currentCallId = null;
-    _callStartTime = null;
+    // _callStartTime = null; // Removed unused field
 
     debugPrint('AICallService: Cleanup completed');
   }

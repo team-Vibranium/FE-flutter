@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'sound_selection_screen.dart';
 import '../core/services/local_alarm_service.dart';
 import '../core/services/base_api_service.dart';
@@ -18,7 +20,7 @@ class AlarmAddScreen extends ConsumerStatefulWidget {
 class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 7, minute: 0);
   String _selectedAlarmType = '일반알람';
-  String _selectedMission = 'PUZZLE';
+  String _selectedMission = 'NONE';
   String _selectedSound = '기본 알람음';
   String _selectedVoice = 'ALLOY';
   String _selectedConcept = '친근한';
@@ -28,6 +30,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   int _snoozeCount = 3;
   bool _isSoundPlaying = false;
   bool _isVoicePlaying = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
   final List<String> _selectedDays = [];
   final TextEditingController _alarmTitleController = TextEditingController();
@@ -35,6 +38,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
 
   final List<String> _days = ['월', '화', '수', '목', '금', '토', '일'];
   final Map<String, String> _missions = {
+    'NONE': '미션 없음 (알람만 울림)',
     'PUZZLE': 'PUZZLE (퍼즐)',
     'MATH': 'MATH (수학 문제)',
     'MEMORY': 'MEMORY (기억 게임)',
@@ -221,7 +225,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
             const SizedBox(height: 24),
             _buildVolumeAndVibrationSelector(),
             const SizedBox(height: 24),
-            _buildSnoozeSelector(),
+            if (_selectedAlarmType != '전화알람') _buildSnoozeSelector(),
             if (_selectedAlarmType == '전화알람') ...[
               const SizedBox(height: 24),
               _buildConceptSelector(),
@@ -330,25 +334,61 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            // 한 줄에 모든 요일 배치
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: _days.map((day) {
                 final isSelected = _selectedDays.contains(day);
-                return FilterChip(
-                  label: Text(day),
-                  selected: isSelected,
-                  onSelected: (selected) {
+                return GestureDetector(
+                  onTap: () {
                     setState(() {
-                      if (selected) {
-                        _selectedDays.add(day);
-                      } else {
+                      if (isSelected) {
                         _selectedDays.remove(day);
+                      } else {
+                        _selectedDays.add(day);
                       }
                     });
                   },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected 
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.surface,
+                      border: Border.all(
+                        color: isSelected 
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outline,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        day.substring(0, 1), // 첫 글자만 표시 (월, 화, 수...)
+                        style: TextStyle(
+                          color: isSelected 
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _selectedDays.isEmpty 
+                  ? '요일을 선택하지 않으면 1회용 알람이 됩니다'
+                  : '선택된 요일: ${_selectedDays.join(', ')}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -421,7 +461,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedMission,
+              initialValue: _selectedMission,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -526,7 +566,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                       const Text('스누즈 간격'),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
-                        value: _snoozeMinutes,
+                        initialValue: _snoozeMinutes,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -534,7 +574,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                         items: _snoozeMinutesOptions.map((minutes) {
                           return DropdownMenuItem(
                             value: minutes,
-                            child: Text('${minutes}분'),
+                            child: Text('$minutes분'),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -554,7 +594,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                       const Text('스누즈 횟수'),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
-                        value: _snoozeCount,
+                        initialValue: _snoozeCount,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -562,7 +602,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                         items: _snoozeCountOptions.map((count) {
                           return DropdownMenuItem(
                             value: count,
-                            child: Text('${count}회'),
+                            child: Text('$count회'),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -751,8 +791,9 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
             Row(
               children: [
                 Expanded(
+                  flex: 4,
                   child: DropdownButtonFormField<String>(
-                    value: _selectedVoice,
+                    initialValue: _selectedVoice,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -760,7 +801,10 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                     items: _voices.entries.map((entry) {
                       return DropdownMenuItem(
                         value: entry.key,
-                        child: Text(entry.value),
+                        child: Text(
+                          entry.value,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -770,7 +814,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 IconButton(
                   onPressed: _toggleVoicePlayback,
                   icon: Icon(
@@ -779,7 +823,11 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
                   ),
                   style: IconButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
                   ),
                 ),
               ],
@@ -807,15 +855,82 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   }
 
   Future<void> _selectTime() async {
-    final TimeOfDay? picked = await showTimePicker(
+    await showCupertinoModalPopup<void>(
       context: context,
-      initialTime: _selectedTime,
+      builder: (BuildContext context) => Container(
+        height: 300,
+        padding: const EdgeInsets.only(top: 6.0),
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        color: CupertinoColors.systemBackground.resolveFrom(context),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              // 헤더
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: CupertinoColors.separator.resolveFrom(context),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('취소'),
+                    ),
+                    const Text(
+                      '시간 선택',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('완료'),
+                    ),
+                  ],
+                ),
+              ),
+              // 시간 선택기
+              Expanded(
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.time,
+                  initialDateTime: DateTime(
+                    2024,
+                    1,
+                    1,
+                    _selectedTime.hour,
+                    _selectedTime.minute,
+                  ),
+                  use24hFormat: true,
+                  onDateTimeChanged: (DateTime newDateTime) {
+                    setState(() {
+                      _selectedTime = TimeOfDay(
+                        hour: newDateTime.hour,
+                        minute: newDateTime.minute,
+                      );
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (picked != null && picked != _selectedTime) {
-      setState(() {
-        _selectedTime = picked;
-      });
-    }
   }
 
   void _openSoundSelection() async {
@@ -835,81 +950,171 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     }
   }
 
-  void _toggleSoundPlayback() {
-    setState(() {
-      _isSoundPlaying = !_isSoundPlaying;
-      if (_isVoicePlaying) {
-        _isVoicePlaying = false; // 다른 재생 중지
-      }
-    });
-    
+  void _toggleSoundPlayback() async {
     if (_isSoundPlaying) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_selectedSound} 재생 중...'),
-          duration: const Duration(seconds: 2),
-          action: SnackBarAction(
-            label: '중지',
-            onPressed: () {
-              setState(() {
-                _isSoundPlaying = false;
-              });
-            },
+      // 재생 중이면 중지
+      await _audioPlayer.stop();
+      setState(() {
+        _isSoundPlaying = false;
+      });
+    } else {
+      // 다른 재생 중지
+      if (_isVoicePlaying) {
+        setState(() {
+          _isVoicePlaying = false;
+        });
+      }
+      
+      try {
+        // 선택된 사운드 파일 찾기
+        String? soundFile;
+        for (String genre in ['차분한 소리', '전통적인 알람', '리듬감 있는 소리', '긴급알람', '이상한 소리']) {
+          // 간단한 매핑 (실제로는 더 정확한 매핑 필요)
+          if (_selectedSound.contains('기본')) {
+            soundFile = 'sounds/전통적인 알람/무난한 소리.mp3';
+            break;
+          }
+        }
+        
+        if (soundFile == null) {
+          // 기본 사운드 사용
+          soundFile = 'sounds/전통적인 알람/무난한 소리.mp3';
+        }
+        
+        await _audioPlayer.play(AssetSource('assets/$soundFile'));
+        
+        setState(() {
+          _isSoundPlaying = true;
+        });
+        
+        // 재생 완료 시 상태 업데이트
+        _audioPlayer.onPlayerComplete.listen((_) {
+          if (mounted) {
+            setState(() {
+              _isSoundPlaying = false;
+            });
+          }
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$_selectedSound 재생 중...'),
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: '중지',
+              onPressed: () async {
+                await _audioPlayer.stop();
+                if (mounted) {
+                  setState(() {
+                    _isSoundPlaying = false;
+                  });
+                }
+              },
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('사운드 재생 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  void _toggleVoicePlayback() {
-    setState(() {
-      _isVoicePlaying = !_isVoicePlaying;
-      if (_isSoundPlaying) {
-        _isSoundPlaying = false; // 다른 재생 중지
-      }
-    });
-    
+  void _toggleVoicePlayback() async {
     if (_isVoicePlaying) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_voices[_selectedVoice]} 미리듣기 중...'),
-          duration: const Duration(seconds: 2),
-          action: SnackBarAction(
-            label: '중지',
-            onPressed: () {
-              setState(() {
-                _isVoicePlaying = false;
-              });
-            },
+      // 재생 중이면 중지
+      await _audioPlayer.stop();
+      setState(() {
+        _isVoicePlaying = false;
+      });
+    } else {
+      // 다른 재생 중지
+      if (_isSoundPlaying) {
+        setState(() {
+          _isSoundPlaying = false;
+        });
+      }
+      
+      try {
+        // 음성 파일 재생
+        final voiceFileName = _selectedVoice.toLowerCase();
+        print('Voice 파일 재생 시도: assets/voices/$voiceFileName.wav');
+        await _audioPlayer.play(AssetSource('assets/voices/$voiceFileName.wav'));
+        
+        setState(() {
+          _isVoicePlaying = true;
+        });
+        
+        // 재생 완료 시 상태 업데이트
+        _audioPlayer.onPlayerComplete.listen((_) {
+          if (mounted) {
+            setState(() {
+              _isVoicePlaying = false;
+            });
+          }
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${_voices[_selectedVoice]} 미리듣기 중...'),
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: '중지',
+              onPressed: () async {
+                await _audioPlayer.stop();
+                if (mounted) {
+                  setState(() {
+                    _isVoicePlaying = false;
+                  });
+                }
+              },
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('음성 재생 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _saveAlarm() async {
     try {
-      int? backendAlarmId;
-      
-      // 전화 알람인 경우 백엔드에 먼저 등록
+      int? backendAlarmId = widget.alarmData?['backendAlarmId'] as int?;
+      final bool isEditing = widget.alarmData != null;
+
+      // 전화 알람인 경우 백엔드에 저장/수정
       if (_selectedAlarmType == '전화알람') {
-        backendAlarmId = await _savePhoneAlarmToBackend();
+        if (isEditing && (backendAlarmId != null)) {
+          backendAlarmId = await _updatePhoneAlarmToBackend(backendAlarmId);
+        } else {
+          backendAlarmId = await _savePhoneAlarmToBackend();
+        }
       }
-      
-      // 모든 알람을 로컬 알람 시스템으로 저장
+
+      // 로컬 알람 저장/수정
       await _saveLocalAlarm(backendAlarmId: backendAlarmId);
 
-      // onAlarmSaved 콜백 호출
+      // onAlarmSaved 콜백
       if (widget.onAlarmSaved != null) {
         final alarmData = {
-          'id': backendAlarmId ?? widget.alarmData?['id'],
+          'id': widget.alarmData?['id'],
           'time': '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
           'days': _selectedDays,
-          'type': _selectedAlarmType, // '전화알람' 또는 '일반알람'
+          'type': _selectedAlarmType,
+          'mission': _selectedMission,
           'isEnabled': true,
           'tag': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
           'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
-          'backendAlarmId': backendAlarmId, // 백엔드 알람 ID 추가
+          'backendAlarmId': backendAlarmId,
         };
         widget.onAlarmSaved!(alarmData);
       }
@@ -969,11 +1174,19 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
       print('  - 음성: $_selectedVoice');
       print('  - 토큰: ${token != null ? "있음" : "없음"}');
       
-      final response = await dio.post('/api/alarms', data: {
+      // 미션이 "NONE"이 아닐 때만 미션 정보 포함
+      final Map<String, dynamic> requestData = {
         'alarmTime': targetTime.toIso8601String(),
         'instructions': instructions,
         'voice': _selectedVoice,
-      });
+      };
+      
+      // 미션이 "NONE"이 아닐 때만 미션 정보 추가
+      if (_selectedMission != 'NONE') {
+        requestData['mission'] = _selectedMission;
+      }
+      
+      final response = await dio.post('/api/alarms', data: requestData);
 
       print('📄 응답 상태 코드: ${response.statusCode}');
       print('📄 응답 본문: ${response.data}');
@@ -1065,6 +1278,50 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     }
   }
 
+  /// 전화 알람을 백엔드에서 수정
+  Future<int> _updatePhoneAlarmToBackend(int alarmId) async {
+    try {
+      final dio = Dio();
+      dio.options.baseUrl = 'https://prod.proproject.my';
+
+      final baseApi = BaseApiService();
+      final token = baseApi.accessToken;
+      dio.options.headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+      // 새 시간 계산 (다음 울릴 시간)
+      final now = DateTime.now();
+      final alarmTime = DateTime(now.year, now.month, now.day, _selectedTime.hour, _selectedTime.minute);
+      final targetTimeLocal = alarmTime.isBefore(now) ? alarmTime.add(const Duration(days: 1)) : alarmTime;
+      final targetTime = targetTimeLocal.toUtc();
+
+      final instructions = _buildInstructions();
+
+      // 미션이 "NONE"이 아닐 때만 미션 정보 포함
+      final Map<String, dynamic> requestData = {
+        'alarmTime': targetTime.toIso8601String(),
+        'instructions': instructions,
+        'voice': _selectedVoice,
+      };
+      
+      // 미션이 "NONE"이 아닐 때만 미션 정보 추가
+      if (_selectedMission != 'NONE') {
+        requestData['mission'] = _selectedMission;
+      }
+      
+      final response = await dio.put('/api/alarms/$alarmId', data: requestData);
+
+      if (response.statusCode == 200) {
+        return alarmId;
+      }
+      throw Exception('전화 알람 수정 실패: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// 기존 알람 찾기 (409 Conflict 시)
   Future<int> _findExistingAlarm(Dio dio, DateTime targetTime) async {
     try {
@@ -1112,7 +1369,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
     final situation = _situationController.text.isNotEmpty ? _situationController.text : '일상적인 상황';
 
     return '''
-${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation.
+$_selectedConcept한 톤으로 $title을 깨워주세요. 상황: $situation.
 
 중요한 규칙:
 1. 먼저 친근하게 인사하고 일어날 시간임을 알려주세요.
@@ -1127,13 +1384,11 @@ ${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation.
   /// 일반 로컬 알람 저장
   Future<void> _saveLocalAlarm({int? backendAlarmId}) async {
     final service = LocalAlarmService.instance;
-
-    // 서비스 초기화
     await service.initialize();
 
-    // 선택된 요일들을 숫자 리스트로 변환
+    // 요일 숫자 변환 (1=월, 7=일)
     final selectedDayNumbers = <int>[];
-    for (int i = 0; i < _selectedDays.length; i++) {
+    for (int i = 0; i < _days.length; i++) {
       final dayName = _days[i];
       if (_selectedDays.contains(dayName)) {
         selectedDayNumbers.add(i + 1);
@@ -1141,28 +1396,51 @@ ${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation.
     }
 
     final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
+    final bool isEditing = widget.alarmData != null;
+    final int? localId = widget.alarmData?['id'] as int?;
 
-    // Repository 패턴으로 변경 필요 - 현재는 단순하게 새 알람만 생성
+    if (isEditing && localId != null) {
+      // 기존 알람 업데이트
+      final existing = await service.getAlarmById(localId);
+      if (existing != null) {
+        final updated = existing.copyWith(
+          title: title,
+          hour: _selectedTime.hour,
+          minute: _selectedTime.minute,
+          repeatDays: selectedDayNumbers,
+          vibrate: _isVibrationEnabled,
+          snoozeEnabled: _selectedAlarmType != '전화알람',
+          snoozeInterval: _selectedAlarmType != '전화알람' ? _snoozeMinutes : existing.snoozeInterval,
+          updatedAt: DateTime.now(),
+          type: _selectedAlarmType,
+          backendAlarmId: backendAlarmId ?? existing.backendAlarmId,
+        );
+        await service.updateAlarm(updated);
+        return;
+      }
+    }
+
+    // 신규 생성
     await service.createAlarm(
       title: title,
       hour: _selectedTime.hour,
       minute: _selectedTime.minute,
       repeatDays: selectedDayNumbers,
       vibrate: _isVibrationEnabled,
-      snoozeEnabled: true,
-      snoozeInterval: _snoozeMinutes,
+      snoozeEnabled: _selectedAlarmType != '전화알람',
+      snoozeInterval: _selectedAlarmType != '전화알람' ? _snoozeMinutes : 5,
       label: title,
       isEnabled: true,
-      type: _selectedAlarmType, // '전화알람' 또는 '일반알람'
-      backendAlarmId: backendAlarmId, // 백엔드 알람 ID 전달
+      type: _selectedAlarmType,
+      backendAlarmId: backendAlarmId,
     );
-    print('알람 저장 완료: $title');
   }
 
   @override
   void dispose() {
     _alarmTitleController.dispose();
     _situationController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 }

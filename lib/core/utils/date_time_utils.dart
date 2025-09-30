@@ -11,7 +11,7 @@ class DateTimeUtils {
       // UTC 시간을 로컬 시간으로 변환
       return utcDateTime.toLocal();
     } catch (e) {
-      print('UTC 시간 파싱 오류: $e');
+      // Debug: UTC 시간 파싱 오류: $e
       return DateTime.now();
     }
   }
@@ -91,7 +91,7 @@ class DateTimeUtils {
     final parsed = parseUtcToLocal(utcString);
     
     if (!isValidUtcTime(parsed)) {
-      print('⚠️ 잘못된 UTC 시간 감지: $utcString -> 현재 시간으로 대체');
+      // Debug: 잘못된 UTC 시간 감지: $utcString -> 현재 시간으로 대체
       return DateTime.now();
     }
     

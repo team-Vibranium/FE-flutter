@@ -291,7 +291,7 @@ class _MorningCallAlarmListScreenState extends ConsumerState<MorningCallAlarmLis
                   onChanged: (value) {
                     // TODO: 알람 활성화/비활성화 구현
                   },
-                  activeColor: Colors.indigo,
+                  activeThumbColor: Colors.indigo,
                 ),
               ],
             ),
