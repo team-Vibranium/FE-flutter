@@ -11,7 +11,8 @@
       "Bash(flutter analyze:*)",
       "Bash(find:*)",
       "Bash(nc:*)",
-      "Bash(timeout 30 flutter build:*)"
+      "Bash(timeout 30 flutter build:*)",
+      "Bash(timeout 60 flutter build:*)"
     ],
     "deny": [],
     "ask": []

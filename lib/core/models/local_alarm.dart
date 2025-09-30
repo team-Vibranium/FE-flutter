@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 part 'local_alarm.g.dart';
 
@@ -47,6 +48,9 @@ class LocalAlarm {
   
   /// 알람 타입 ('normal', 'morning_call', 'mission' 등)
   final String? type;
+  
+  /// 백엔드 알람 ID (전화 알람의 경우)
+  final int? backendAlarmId;
 
   const LocalAlarm({
     required this.id,
@@ -63,6 +67,7 @@ class LocalAlarm {
     required this.updatedAt,
     this.label,
     this.type = 'normal',
+    this.backendAlarmId,
   });
 
   /// JSON에서 객체 생성
@@ -112,15 +117,26 @@ class LocalAlarm {
   DateTime? get nextAlarmTime {
     if (!isEnabled) return null;
     
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day, hour, minute);
+    // 한국 시간대 직접 지정
+    final seoul = tz.getLocation('Asia/Seoul');
+    final now = tz.TZDateTime.now(seoul);
+    final today = tz.TZDateTime(seoul, now.year, now.month, now.day, hour, minute);
+    
+    print('🕐 nextAlarmTime 계산:');
+    print('  - 현재 시간 (로컬): $now');
+    print('  - 알람 시간: $hour:$minute');
+    print('  - 오늘 알람 시간: $today');
+    print('  - 반복 요일: $repeatDays');
     
     // 반복 없음 (한번만)
     if (repeatDays.isEmpty) {
       if (today.isAfter(now)) {
+        print('  - 반환: 오늘 알람 시간 ($today)');
         return today;
       } else {
-        return today.add(const Duration(days: 1));
+        final tomorrow = today.add(const Duration(days: 1));
+        print('  - 반환: 내일 알람 시간 ($tomorrow)');
+        return tomorrow;
       }
     }
     
@@ -131,13 +147,16 @@ class LocalAlarm {
       
       if (repeatDays.contains(weekday)) {
         if (i == 0 && checkDate.isAfter(now)) {
+          print('  - 반환: 오늘 반복 알람 시간 ($checkDate)');
           return checkDate;
         } else if (i > 0) {
+          print('  - 반환: ${i}일 후 반복 알람 시간 ($checkDate)');
           return checkDate;
         }
       }
     }
     
+    print('  - 반환: null (다음 알람 시간 없음)');
     return null;
   }
 
@@ -157,6 +176,7 @@ class LocalAlarm {
     DateTime? updatedAt,
     String? label,
     String? type,
+    int? backendAlarmId,
   }) {
     return LocalAlarm(
       id: id ?? this.id,
@@ -173,6 +193,7 @@ class LocalAlarm {
       updatedAt: updatedAt ?? this.updatedAt,
       label: label ?? this.label,
       type: type ?? this.type,
+      backendAlarmId: backendAlarmId ?? this.backendAlarmId,
     );
   }
 

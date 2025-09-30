@@ -25,6 +25,7 @@ LocalAlarm _$LocalAlarmFromJson(Map<String, dynamic> json) => LocalAlarm(
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   label: json['label'] as String?,
   type: json['type'] as String? ?? 'normal',
+  backendAlarmId: (json['backendAlarmId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$LocalAlarmToJson(LocalAlarm instance) =>
@@ -43,4 +44,5 @@ Map<String, dynamic> _$LocalAlarmToJson(LocalAlarm instance) =>
       'updatedAt': instance.updatedAt.toIso8601String(),
       'label': instance.label,
       'type': instance.type,
+      'backendAlarmId': instance.backendAlarmId,
     };

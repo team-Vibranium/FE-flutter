@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timezone/timezone.dart' as tz;
 import '../models/alarm.dart';
 import 'alarm_provider.dart';
 import 'repository_provider.dart';
@@ -111,7 +112,13 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   Future<void> updateAlarm(Alarm updatedAlarm) async {
     try {
       // 기존 알람의 알림 취소
-      final oldAlarm = state.alarms.firstWhere((alarm) => alarm.id == updatedAlarm.id);
+      final oldAlarmIndex = state.alarms.indexWhere((alarm) => alarm.id == updatedAlarm.id);
+      if (oldAlarmIndex == -1) {
+        print('⚠️ 업데이트할 알람을 찾을 수 없습니다. 새 알람으로 추가합니다.');
+        await addAlarm(updatedAlarm);
+        return;
+      }
+      final oldAlarm = state.alarms[oldAlarmIndex];
       await _cancelAlarmNotifications(oldAlarm);
 
       // Repository를 통해 업데이트
@@ -198,8 +205,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   Future<void> _scheduleAlarmNotifications(Alarm alarm) async {
     final alarmNotifier = _ref.read(alarmStateProvider.notifier);
     
-    // 요일별로 알람 스케줄링
-    final now = DateTime.now();
+    // 요일별로 알람 스케줄링 (한국 시간대 직접 지정)
+    final seoul = tz.getLocation('Asia/Seoul');
+    final now = tz.TZDateTime.now(seoul);
     final weekdays = {
       '월': DateTime.monday,
       '화': DateTime.tuesday,
@@ -219,31 +227,29 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       final hour = int.parse(timeParts[0]);
       final minute = int.parse(timeParts[1]);
       
-      // 한국 시간으로 변환 (UTC+9)
-      final koreaTime = now.add(const Duration(hours: 9));
-      
       // 다음 알람 시간 계산 (한국 시간 기준)
-      DateTime scheduledTime = DateTime(koreaTime.year, koreaTime.month, koreaTime.day, hour, minute);
+      tz.TZDateTime scheduledTime = tz.TZDateTime(seoul, now.year, now.month, now.day, hour, minute);
       
       // 해당 요일로 조정
-      final daysUntilTarget = (weekday - koreaTime.weekday + 7) % 7;
-      scheduledTime = scheduledTime.add(Duration(days: daysUntilTarget));
+      final daysUntilTarget = (weekday - now.weekday + 7) % 7;
+      scheduledTime = scheduledTime.add(Duration(days: daysUntilTarget.toInt()));
       
       // 만약 오늘이고 시간이 지났다면 다음 주로
-      if (daysUntilTarget == 0 && scheduledTime.isBefore(koreaTime)) {
+      if (daysUntilTarget == 0 && scheduledTime.isBefore(now)) {
         scheduledTime = scheduledTime.add(const Duration(days: 7));
       }
       
-      // UTC로 변환 (알람 스케줄링용)
-      scheduledTime = scheduledTime.subtract(const Duration(hours: 9));
+      // 디버깅: 현재 시간과 예정 시간 출력 (한국 시간 그대로 사용)
+      print('현재 시간 (한국): $now');
+      print('예정 시간 (한국): $scheduledTime (${alarm.tag} - $day)');
       
-      // 디버깅: 현재 시간과 예정 시간 출력
-      print('현재 시간: $now');
-      print('예정 시간: $scheduledTime (${alarm.tag} - $day)');
-      
-      // 고유한 알림 ID 생성 (정수 ID 사용)
-      final notificationId = alarm.id * 10 + weekday;
-      
+      // 고유한 알림 ID 생성
+      // - 일반 알람: 로컬 ID * 10 + weekday
+      // - 전화 알람: backendAlarmId를 그대로 사용 (GPT 서비스가 백엔드 API 호출 시 필요)
+      final notificationId = alarm.type == AlarmType.call && alarm.backendAlarmId != null
+          ? alarm.backendAlarmId!
+          : alarm.id * 10 + weekday;
+
       try {
         await alarmNotifier.scheduleAlarm(
           scheduledTime,

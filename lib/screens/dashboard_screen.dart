@@ -169,6 +169,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                           isEnabled: alarm['isEnabled'] ?? true,
                           tag: alarm['tag'] ?? '알람',
                           successRate: alarm['successRate'] ?? 0,
+                          backendAlarmId: alarm['backendAlarmId'] as int?,
                         );
                         await ref.read(dashboardProvider.notifier).addAlarm(alarmObj);
                         // 애니메이션 시작
@@ -312,11 +313,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
   }
 
   Widget _buildNextAlarmSummary(List<Alarm> alarms) {
-    // 다음 알람까지 남은 시간 계산
-    final now = tz.TZDateTime.now(tz.local);
-    print('🕐 현재 시간 (로컬): $now');
-    print('🕐 현재 시간 (UTC): ${now.toUtc()}');
-    print('🕐 시간대: ${tz.local}');
+    // 다음 알람까지 남은 시간 계산 (한국 시간대 직접 지정)
+    final seoul = tz.getLocation('Asia/Seoul');
+    final now = tz.TZDateTime.now(seoul);
+    print('🕐 현재 시간 (한국): $now');
+    print('🕐 시간대: ${seoul.name}');
     DateTime? nextAlarmTime;
 
     for (final alarm in alarms.where((alarm) => alarm.isEnabled)) {
@@ -474,26 +475,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
   }
 
   String _getRemainingTime(String alarmTime) {
-    final now = DateTime.now();
-    // 한국 시간으로 강제 변환 (UTC+9)
-    final koreaTime = now.add(const Duration(hours: 9));
-    print('🕐 _getRemainingTime - 현재 시간: $now');
-    print('🕐 _getRemainingTime - 한국 시간: $koreaTime');
+    // 한국 시간대 직접 지정
+    final seoul = tz.getLocation('Asia/Seoul');
+    final now = tz.TZDateTime.now(seoul);
+    print('🕐 _getRemainingTime - 현재 시간 (한국): $now');
     print('🕐 _getRemainingTime - 알람 시간: $alarmTime');
     final timeParts = alarmTime.split(':');
     final hour = int.parse(timeParts[0]);
     final minute = int.parse(timeParts[1]);
     
     // 한국 시간 기준으로 오늘 알람 시간 계산
-    final today = DateTime(koreaTime.year, koreaTime.month, koreaTime.day, hour, minute);
-    DateTime alarmDateTime = today;
+    final today = tz.TZDateTime(seoul, now.year, now.month, now.day, hour, minute);
+    tz.TZDateTime alarmDateTime = today;
     
     // 이미 지났으면 내일로 설정
-    if (alarmDateTime.isBefore(koreaTime)) {
+    if (alarmDateTime.isBefore(now)) {
       alarmDateTime = alarmDateTime.add(const Duration(days: 1));
     }
     
-    final difference = alarmDateTime.difference(koreaTime);
+    final difference = alarmDateTime.difference(now);
     final hours = difference.inHours;
     final minutes = difference.inMinutes % 60;
     
@@ -696,6 +696,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with TickerPr
                               isEnabled: updatedAlarm['isEnabled'] ?? alarm.isEnabled,
                               tag: updatedAlarm['tag'] ?? alarm.tag,
                               successRate: updatedAlarm['successRate'] ?? alarm.successRate,
+                              backendAlarmId: updatedAlarm['backendAlarmId'] as int? ?? alarm.backendAlarmId,
                             );
                             await ref.read(dashboardProvider.notifier).updateAlarm(updatedAlarmObj);
                             _animationController.forward().then((_) {

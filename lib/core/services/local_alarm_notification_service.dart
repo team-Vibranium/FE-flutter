@@ -29,6 +29,7 @@ class LocalAlarmNotificationService {
     try {
       // 타임존 초기화
       tz.initializeTimeZones();
+      print('✅ 알람 서비스 - 타임존 초기화 완료');
       
       // Android 설정
       const AndroidInitializationSettings initializationSettingsAndroid =
@@ -167,9 +168,19 @@ class LocalAlarmNotificationService {
         iOS: iosDetails,
       );
       
-      // payload에 alarmType 포함
-      final payload = '{"alarmId": "${alarm.id}", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
-      
+      // payload에 alarmType 포함 (전화 알람은 backendAlarmId 사용)
+      final alarmId = alarm.type == '전화알람' && alarm.backendAlarmId != null
+          ? alarm.backendAlarmId!
+          : alarm.id;
+
+      print('📤 메인 스케줄링 payload 생성:');
+      print('  - alarm.id (로컬 ID): ${alarm.id}');
+      print('  - alarm.type: ${alarm.type}');
+      print('  - alarm.backendAlarmId: ${alarm.backendAlarmId}');
+      print('  - 사용할 alarmId: $alarmId');
+
+      final payload = '{"alarmId": $alarmId, "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+
       // 알림 스케줄링
       await _flutterLocalNotificationsPlugin.zonedSchedule(
         alarm.id,
@@ -233,8 +244,12 @@ class LocalAlarmNotificationService {
           iOS: iosDetails,
         );
         
-        // payload에 alarmType 포함
-        final payload = '{"alarmId": "${alarm.id}", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+        // payload에 alarmType 포함 (전화 알람은 backendAlarmId 사용)
+        final alarmId = alarm.type == '전화알람' && alarm.backendAlarmId != null
+            ? alarm.backendAlarmId!
+            : alarm.id;
+        print('📤 스케줄링 payload 생성: localId=${alarm.id}, type=${alarm.type}, backendAlarmId=${alarm.backendAlarmId}, 사용할ID=$alarmId');
+        final payload = '{"alarmId": $alarmId, "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
         
         await _flutterLocalNotificationsPlugin.zonedSchedule(
           notificationId,
@@ -342,8 +357,11 @@ class LocalAlarmNotificationService {
         iOS: iosDetails,
       );
       
-      // payload에 alarmType 포함
-      final payload = '{"alarmId": "$alarmId", "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
+      // payload에 alarmType 포함 (전화 알람은 backendAlarmId 사용)
+      final payloadAlarmId = alarm.type == '전화알람' && alarm.backendAlarmId != null
+          ? alarm.backendAlarmId!
+          : alarmId;
+      final payload = '{"alarmId": $payloadAlarmId, "alarmType": "${alarm.type ?? "일반알람"}", "title": "${alarm.title}"}';
       
       await _flutterLocalNotificationsPlugin.zonedSchedule(
         alarmId + 10000, // 스누즈용 ID

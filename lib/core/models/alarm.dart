@@ -18,6 +18,7 @@ class Alarm {
   final bool isEnabled;
   final String tag;
   final int successRate;
+  final int? backendAlarmId; // 백엔드 알람 ID (전화 알람의 경우)
 
   const Alarm({
     required this.id,
@@ -27,6 +28,7 @@ class Alarm {
     required this.isEnabled,
     required this.tag,
     required this.successRate,
+    this.backendAlarmId,
   });
 
   factory Alarm.fromJson(Map<String, dynamic> json) => _$AlarmFromJson(json);
@@ -40,6 +42,7 @@ class Alarm {
     bool? isEnabled,
     String? tag,
     int? successRate,
+    int? backendAlarmId,
   }) {
     return Alarm(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class Alarm {
       isEnabled: isEnabled ?? this.isEnabled,
       tag: tag ?? this.tag,
       successRate: successRate ?? this.successRate,
+      backendAlarmId: backendAlarmId ?? this.backendAlarmId,
     );
   }
 

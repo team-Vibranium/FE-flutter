@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'mission_screen.dart';
 import '../core/models/alarm.dart';
 import '../core/services/gpt_realtime_service.dart';
@@ -29,13 +30,16 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   late Animation<double> _fadeAnimation;
   
   Timer? _silenceTimer;
-  int _silenceCountdown = 10;
+  int _silenceCountdown = 20;
   bool _isRecording = false;
   bool _isCallActive = false; // 전화 받기 전까지는 false
   bool _isCallAccepted = false; // 전화 받았는지 여부
 
   // GPT 서비스
   final GPTRealtimeService _gptService = GPTRealtimeService();
+
+  // WebRTC 오디오
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
 
   // 스누즈 관련
   int _snoozeCount = 0;
@@ -45,9 +49,14 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
   void initState() {
     super.initState();
     _setupAnimations();
+    _initializeRenderer();
     if (widget.alarmType == '전화알람') {
       _startSilenceTimer();
     }
+  }
+
+  Future<void> _initializeRenderer() async {
+    await _remoteRenderer.initialize();
   }
 
   void _setupAnimations() {
@@ -98,6 +107,13 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
     _pulseController.dispose();
     _fadeController.dispose();
     _silenceTimer?.cancel();
+
+    // 스피커폰 비활성화
+    Helper.setSpeakerphoneOn(false).catchError((e) {
+      print('❌ 스피커폰 비활성화 실패: $e');
+    });
+
+    _remoteRenderer.dispose();
     super.dispose();
   }
 
@@ -201,18 +217,33 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
 
   Widget _buildCallInterface() {
     return SafeArea(
-      child: Column(
+      child: Stack(
         children: [
-          // 상단 프로필
-          _buildCallHeader(),
-          
-          // 음성 상태 표시 (채팅 로그 대신)
-          Expanded(
-            child: _buildVoiceStatus(),
+          Column(
+            children: [
+              // 상단 프로필
+              _buildCallHeader(),
+
+              // 음성 상태 표시 (채팅 로그 대신)
+              Expanded(
+                child: _buildVoiceStatus(),
+              ),
+
+              // 하단 컨트롤
+              _buildCallControls(),
+            ],
           ),
-          
-          // 하단 컨트롤
-          _buildCallControls(),
+          // RTCVideoView를 숨겨진 상태로 추가 (오디오 재생을 위해 필요)
+          Positioned(
+            left: 0,
+            top: 0,
+            width: 1,
+            height: 1,
+            child: RTCVideoView(
+              _remoteRenderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            ),
+          ),
         ],
       ),
     );
@@ -464,28 +495,79 @@ class _AlarmRingScreenState extends State<AlarmRingScreen> with TickerProviderSt
       _isCallAccepted = true;
       _isRecording = true;
     });
-    
+
     // GPT 서비스 시작
     if (widget.alarmId != null) {
       try {
-        print('📞 전화 받기 - GPT 서비스 시작');
-        await _gptService.startMorningCall(alarmId: widget.alarmId!);
-        
-        // GPT 서비스 콜백 설정
+        // 알람 정보 로깅
+        if (widget.alarm != null) {
+          print('📞 전화 받기 - 알람 정보:');
+          print('  - 제목: ${widget.alarm!.tag}');
+          print('  - 시간: ${widget.alarm!.time}');
+          print('  - 백엔드 ID: ${widget.alarm!.backendAlarmId}');
+          print('  - 로컬 ID: ${widget.alarm!.id}');
+        } else {
+          print('📞 전화 받기 - alarmId만 전달됨: ${widget.alarmId}');
+        }
+
+        print('📞 GPT 서비스 시작');
+
+        // GPT 서비스 콜백 설정 (통화 시작 전에 설정해야 함!)
         _gptService.onCallStarted = () {
           print('✅ GPT 통화 시작됨');
         };
-        
+
         _gptService.onCallEnded = () {
           print('📞 GPT 통화 종료됨');
           Navigator.of(context).pop();
         };
-        
+
         _gptService.onSnoozeRequested = (alarmId, snoozeMinutes) {
           print('😴 스누즈 요청됨: ${snoozeMinutes}분');
           // 스누즈 처리 (GPT 서비스에서 자동 처리됨)
         };
-        
+
+        // 원격 오디오 스트림 설정 (통화 시작 전에 설정!)
+        _gptService.onRemoteStream = (stream) async {
+          print('🔊 원격 스트림 설정');
+
+          try {
+            // 렌더러에 스트림 설정
+            await _remoteRenderer.setSrcObject(stream: stream);
+            print('✅ 렌더러에 스트림 설정 완료');
+
+            // 스피커폰 활성화 (Android/iOS)
+            await Helper.setSpeakerphoneOn(true);
+            print('📢 스피커폰 활성화 완료');
+
+            // 오디오 트랙 활성화 확인
+            final audioTracks = stream.getAudioTracks();
+            print('🎵 오디오 트랙 개수: ${audioTracks.length}');
+            for (var track in audioTracks) {
+              print('🎵 트랙 ${track.id}:');
+              print('  - enabled: ${track.enabled}');
+              print('  - kind: ${track.kind}');
+              print('  - label: ${track.label}');
+
+              track.enabled = true;
+              track.enableSpeakerphone(true);
+
+              print('  - 활성화 완료');
+            }
+
+            // 강제 리렌더링
+            if (mounted) {
+              setState(() {});
+              print('✅ UI 리렌더링 완료');
+            }
+          } catch (e) {
+            print('❌ 스트림 설정 오류: $e');
+          }
+        };
+
+        // 콜백 설정 후 통화 시작
+        await _gptService.startMorningCall(alarmId: widget.alarmId!);
+
       } catch (e) {
         print('❌ GPT 서비스 시작 실패: $e');
         ScaffoldMessenger.of(context).showSnackBar(

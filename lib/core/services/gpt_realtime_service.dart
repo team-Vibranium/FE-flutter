@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
+import 'base_api_service.dart';
 
 /// 알람 타입 enum
 enum AlarmType {
@@ -41,6 +43,11 @@ class GPTRealtimeService {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
+  RTCDataChannel? _dataChannel;
+  bool _remoteStreamHandled = false; // 원격 스트림 중복 처리 방지
+
+  // HTTP 클라이언트
+  late Dio _dio;
   
   
   // 상태
@@ -62,9 +69,6 @@ class GPTRealtimeService {
   Function()? onCallEnded;
   Function(MediaStream)? onRemoteStream;
   Function(int, int)? onSnoozeRequested; // alarmId, snoozeMinutes
-
-  // Dio (백엔드 통신)
-  late Dio _dio;
 
   /// 서비스 초기화
   Future<void> initialize(String apiKey) async {
@@ -90,19 +94,32 @@ class GPTRealtimeService {
     try {
       print('🌅 전화 알람 시작 (alarmId=$alarmId)');
 
+      // Dio 초기화 (인증 토큰 포함)
+      _dio = Dio();
+      _dio.options.baseUrl = 'https://prod.proproject.my';
+      
+      // 인증 토큰 가져오기
+      final token = _getAuthToken();
+      _dio.options.headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      print('✅ Dio 초기화 완료 (토큰: ${token != null ? "있음 (${token.substring(0, 20)}...)" : "없음"})');
+
       // 전화 알람으로 설정
       _currentAlarmType = AlarmType.phoneCall;
       _currentAlarmId = alarmId;
       _snoozeCount = 0;
 
-      // 1. 원래 알람 정보 조회 및 저장
-      await _loadOriginalAlarmInfo(alarmId);
+      // 1. 원래 알람 정보 조회 및 저장 (없으면 생성하고 실제 ID 반환)
+      final actualAlarmId = await _loadOriginalAlarmInfo(alarmId);
+      _currentAlarmId = actualAlarmId; // 실제 알람 ID로 업데이트
 
       // 2. WebRTC 초기화
       await _initializeWebRTC();
 
-      // 2. 백엔드에서 ephemeral key 요청
-      final session = await _getEphemeralKey(alarmId: alarmId);
+      // 3. 백엔드에서 ephemeral key 요청 (실제 알람 ID 사용)
+      final session = await _getEphemeralKey(alarmId: actualAlarmId);
       _ephemeralKey = session.ephemeralKey;
       _sessionId = session.sessionId;
 
@@ -154,14 +171,14 @@ class GPTRealtimeService {
       }
       
       print('📞 통화 시작 API 호출: $_sessionId');
-      
+
       final response = await _dio.post(
         '/api/calls/start',
         data: {
           'sessionId': _sessionId,
         },
       );
-      
+
       if (response.statusCode == 201) {
         final callData = response.data['data'] as Map<String, dynamic>;
         _currentCallId = callData['callId'] as int;
@@ -169,7 +186,15 @@ class GPTRealtimeService {
       } else {
         throw Exception('통화 시작 실패: ${response.statusCode}');
       }
-      
+
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        print('⚠️ 이미 통화가 진행 중입니다. 계속 진행합니다.');
+        // 409는 이미 통화 중이라는 의미이므로, 에러로 처리하지 않고 계속 진행
+        return;
+      }
+      print('❌ 통화 시작 API 오류: $e');
+      throw Exception('통화 시작 실패: $e');
     } catch (e) {
       print('❌ 통화 시작 API 오류: $e');
       throw Exception('통화 시작 실패: $e');
@@ -290,7 +315,24 @@ class GPTRealtimeService {
 
     _peerConnection = await createPeerConnection(config);
 
-    // 로컬 오디오 트랙
+    // 데이터 채널 생성 (Realtime API 메시지용)
+    final dataChannelDict = RTCDataChannelInit();
+    dataChannelDict.ordered = true;
+    _dataChannel = await _peerConnection!.createDataChannel('oai-events', dataChannelDict);
+
+    _dataChannel!.onMessage = (RTCDataChannelMessage message) {
+      _handleRealtimeMessage(message.text);
+    };
+
+    _dataChannel!.onDataChannelState = (state) {
+      print('📡 데이터 채널 상태: $state');
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        // 데이터 채널이 열리면 세션 설정
+        _setupRealtimeMessageHandling();
+      }
+    };
+
+    // 로컬 오디오 트랙 (마이크)
     final constraints = {
       'audio': {
         'echoCancellation': true,
@@ -302,15 +344,49 @@ class GPTRealtimeService {
       'video': false,
     };
     _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    // 로컬 마이크 트랙을 추가하되, 로컬에서는 재생하지 않도록 설정
     _localStream!.getTracks().forEach((t) {
       _peerConnection!.addTrack(t, _localStream!);
     });
 
+    // 연결 상태 변경 리스너
+    _peerConnection!.onConnectionState = (state) {
+      print('🔗 WebRTC 연결 상태: $state');
+    };
+
     // 원격 스트림
-    _peerConnection!.onAddStream = (stream) {
+    _peerConnection!.onAddStream = (stream) async {
+      // 중복 호출 방지
+      if (_remoteStreamHandled) {
+        print('⚠️ 원격 스트림 이미 처리됨 - 중복 호출 무시');
+        return;
+      }
+      _remoteStreamHandled = true;
+
       _remoteStream = stream;
-      onRemoteStream?.call(stream);
-      print('🔊 원격 오디오 스트림 수신');
+
+      // 오디오 트랙 활성화
+      final audioTracks = stream.getAudioTracks();
+      for (var track in audioTracks) {
+        track.enabled = true;
+      }
+
+      print('🔊 원격 오디오 스트림 수신 (트랙: ${audioTracks.length})');
+
+      // 콜백이 설정될 때까지 대기 (최대 2초)
+      int retries = 20;
+      while (onRemoteStream == null && retries > 0) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        retries--;
+      }
+
+      if (onRemoteStream != null) {
+        onRemoteStream!(stream);
+        print('✅ 원격 스트림 콜백 호출 완료');
+      } else {
+        print('❌ 원격 스트림 콜백이 설정되지 않음');
+      }
     };
 
     print('🎧 WebRTC 초기화 완료');
@@ -335,13 +411,12 @@ class GPTRealtimeService {
       data: offer.sdp,
     );
 
-    if (res.statusCode == 200) {
+    if (res.statusCode == 200 || res.statusCode == 201) {
       final answer = RTCSessionDescription(res.data, 'answer');
       await _peerConnection!.setRemoteDescription(answer);
-      print('✅ Answer 적용 완료');
-      
-      // WebRTC 데이터 채널을 통한 실시간 메시지 처리 시작
-      _setupRealtimeMessageHandling();
+      print('✅ Answer 적용 완료 (상태 코드: ${res.statusCode})');
+
+      // 데이터 채널이 열리면 onDataChannelState 콜백에서 _setupRealtimeMessageHandling() 호출됨
     } else {
       throw Exception('Offer 전송 실패: ${res.statusCode}');
     }
@@ -349,9 +424,103 @@ class GPTRealtimeService {
 
   /// 실시간 메시지 처리 설정
   void _setupRealtimeMessageHandling() {
-    // WebRTC 데이터 채널을 통한 실시간 메시지 처리
-    // 실제 구현에서는 WebRTC 데이터 채널을 통해 GPT Realtime API 메시지를 받아야 함
     print('📡 실시간 메시지 처리 설정 완료');
+
+    // 세션 설정 메시지 전송
+    _sendRealtimeMessage({
+      'type': 'session.update',
+      'session': {
+        'modalities': ['text', 'audio'],
+        'instructions': _originalInstructions ?? '사용자를 친근하게 깨워주세요',
+        'voice': 'alloy',
+        'input_audio_format': 'pcm16',
+        'output_audio_format': 'pcm16',
+        'input_audio_transcription': {
+          'model': 'whisper-1',
+        },
+        'turn_detection': {
+          'type': 'server_vad',
+          'threshold': 0.5,
+          'prefix_padding_ms': 300,
+          'silence_duration_ms': 500,
+        },
+      },
+    });
+
+    // 대화 시작 메시지 전송
+    _sendRealtimeMessage({
+      'type': 'response.create',
+    });
+  }
+
+  /// Realtime API 메시지 전송
+  void _sendRealtimeMessage(Map<String, dynamic> message) {
+    if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
+      final messageStr = jsonEncode(message);
+      _dataChannel!.send(RTCDataChannelMessage(messageStr));
+      print('📤 메시지 전송: ${message['type']}');
+    } else {
+      print('❌ 데이터 채널이 열려있지 않습니다: ${_dataChannel?.state}');
+    }
+  }
+
+  /// Realtime API 메시지 수신 처리
+  void _handleRealtimeMessage(String messageStr) {
+    try {
+      final message = jsonDecode(messageStr) as Map<String, dynamic>;
+      final type = message['type'] as String;
+
+      print('📥 메시지 수신: $type');
+
+      switch (type) {
+        case 'session.created':
+        case 'session.updated':
+          print('✅ 세션 설정 완료');
+          break;
+
+        case 'response.audio.delta':
+          // 오디오 청크 수신 (자동으로 재생됨)
+          break;
+
+        case 'response.audio_transcript.delta':
+          final transcript = message['delta'] as String?;
+          if (transcript != null) {
+            print('🗣️ GPT: $transcript');
+          }
+          break;
+
+        case 'input_audio_buffer.speech_started':
+          print('🎤 사용자 말하기 시작');
+          break;
+
+        case 'input_audio_buffer.speech_stopped':
+          print('🎤 사용자 말하기 종료');
+          break;
+
+        case 'conversation.item.input_audio_transcription.completed':
+          final transcript = message['transcript'] as String?;
+          if (transcript != null) {
+            print('👤 사용자: $transcript');
+            // 스누즈 키워드 감지
+            _handleVoiceSnooze(transcript);
+          }
+          break;
+
+        case 'response.done':
+          print('✅ 응답 완료');
+          break;
+
+        case 'error':
+          final error = message['error'];
+          print('❌ Realtime API 오류: $error');
+          break;
+
+        default:
+          print('📨 기타 메시지: $type');
+      }
+    } catch (e) {
+      print('❌ 메시지 처리 오류: $e');
+    }
   }
 
   /// 음성에서 스누즈 키워드 감지 및 처리
@@ -496,19 +665,53 @@ class GPTRealtimeService {
     }
   }
 
-  /// 원래 알람 정보 로드
-  Future<void> _loadOriginalAlarmInfo(int alarmId) async {
+  /// 원래 알람 정보 로드 (없으면 생성)
+  Future<int> _loadOriginalAlarmInfo(int alarmId) async {
     try {
+      // 먼저 기존 알람 조회 시도
       final response = await _dio.get('/api/alarms/$alarmId');
       if (response.statusCode == 200) {
         final alarmData = response.data['data'] as Map<String, dynamic>;
-        _originalInstructions = alarmData['instructions'] as String;
-        print('✅ 원래 알람 정보 로드: $_originalInstructions');
+        _originalInstructions = alarmData['instructions'] as String? ?? '부드럽게 깨워주세요';
+        print('✅ 기존 알람 정보 로드: $_originalInstructions');
+        return alarmId; // 기존 알람 ID 반환
       } else {
-        print('⚠️ 알람 정보 로드 실패: ${response.statusCode}');
+        print('⚠️ 알람 조회 실패, 새로 생성 시도: ${response.statusCode}');
+        throw Exception('알람을 찾을 수 없습니다');
       }
     } catch (e) {
-      print('❌ 알람 정보 로드 오류: $e');
+      print('⚠️ 알람 조회 실패, 새로 생성 시도: $e');
+      
+      // 알람이 없으면 새로 생성
+      try {
+        print('🆕 새 알람 생성 중...');
+        final now = DateTime.now();
+        final alarmTime = DateTime(now.year, now.month, now.day, now.hour, now.minute + 1);
+        
+        final createResponse = await _dio.post('/api/alarms', data: {
+          'alarmTime': alarmTime.toIso8601String(),
+          'instructions': '부드럽게 깨워주세요',
+          'voice': 'ALLOY',
+        });
+        
+        if (createResponse.statusCode == 201) {
+          final alarmData = createResponse.data['data'] as Map<String, dynamic>?;
+          if (alarmData == null || alarmData['alarmId'] == null) {
+            print('❌ 알람 생성 실패: 응답 데이터가 null입니다');
+            throw Exception('알람 생성 실패: 응답 데이터가 null입니다');
+          }
+          final newAlarmId = alarmData['alarmId'] as int;
+          _originalInstructions = alarmData['instructions'] as String? ?? '부드럽게 깨워주세요';
+          print('✅ 새 알람 생성 완료: $_originalInstructions (ID: $newAlarmId)');
+          return newAlarmId; // 새로 생성된 알람 ID 반환
+        } else {
+          print('❌ 알람 생성 실패: ${createResponse.statusCode}');
+          throw Exception('알람 생성 실패: ${createResponse.statusCode}');
+        }
+      } catch (createError) {
+        print('❌ 알람 생성 오류: $createError');
+        rethrow;
+      }
     }
   }
 
@@ -574,6 +777,7 @@ class GPTRealtimeService {
     _sessionId = null;
     _ephemeralKey = null;
     _currentCallId = null;
+    _remoteStreamHandled = false; // 플래그 리셋
   }
 
 
@@ -654,6 +858,17 @@ class GPTRealtimeService {
       
     } catch (e) {
       print('❌ 대화 내용 저장 오류: $e');
+    }
+  }
+
+  /// 인증 토큰 가져오기
+  String? _getAuthToken() {
+    try {
+      final baseApi = BaseApiService();
+      return baseApi.accessToken;
+    } catch (e) {
+      print('❌ 토큰 로드 오류: $e');
+      return null;
     }
   }
 

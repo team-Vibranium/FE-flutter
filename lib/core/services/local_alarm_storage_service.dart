@@ -22,15 +22,28 @@ class LocalAlarmStorageService {
   /// 모든 알람 조회
   Future<List<LocalAlarm>> getAllAlarms() async {
     await initialize();
-    
+
     final alarmsJson = _prefs!.getString(_alarmsKey);
-    if (alarmsJson == null) return [];
-    
+    if (alarmsJson == null) {
+      print('📖 저장된 알람 없음');
+      return [];
+    }
+
     try {
+      print('📖 알람 데이터 로드 시작');
+      print('📖 JSON 원본: ${alarmsJson.substring(0, alarmsJson.length > 200 ? 200 : alarmsJson.length)}...');
+
       final List<dynamic> alarmsList = jsonDecode(alarmsJson);
-      return alarmsList
+      final alarms = alarmsList
           .map((json) => LocalAlarm.fromJson(json))
           .toList();
+
+      print('📖 로드된 알람 (${alarms.length}개):');
+      for (final alarm in alarms) {
+        print('  - ID: ${alarm.id}, type: ${alarm.type}, backendAlarmId: ${alarm.backendAlarmId}');
+      }
+
+      return alarms;
     } catch (e) {
       print('알람 데이터 로드 오류: $e');
       return [];
@@ -47,8 +60,11 @@ class LocalAlarmStorageService {
   Future<LocalAlarm?> getAlarmById(int id) async {
     final allAlarms = await getAllAlarms();
     try {
-      return allAlarms.firstWhere((alarm) => alarm.id == id);
+      final alarm = allAlarms.firstWhere((alarm) => alarm.id == id);
+      print('📖 알람 조회: id=$id, type=${alarm.type}, backendAlarmId=${alarm.backendAlarmId}');
+      return alarm;
     } catch (e) {
+      print('📖 알람 조회 실패: id=$id');
       return null;
     }
   }
@@ -56,17 +72,25 @@ class LocalAlarmStorageService {
   /// 알람 저장 (새로 추가 또는 업데이트)
   Future<bool> saveAlarm(LocalAlarm alarm) async {
     try {
+      print('💾 알람 저장 시작:');
+      print('  - alarm.id: ${alarm.id}');
+      print('  - alarm.type: ${alarm.type}');
+      print('  - alarm.backendAlarmId: ${alarm.backendAlarmId}');
+      print('  - alarm.title: ${alarm.title}');
+
       final allAlarms = await getAllAlarms();
       final index = allAlarms.indexWhere((a) => a.id == alarm.id);
-      
+
       if (index >= 0) {
         // 기존 알람 업데이트
         allAlarms[index] = alarm.copyWith(updatedAt: DateTime.now());
+        print('  - 기존 알람 업데이트');
       } else {
         // 새 알람 추가
         allAlarms.add(alarm);
+        print('  - 새 알람 추가');
       }
-      
+
       return await _saveAllAlarms(allAlarms);
     } catch (e) {
       print('알람 저장 오류: $e');
@@ -199,10 +223,17 @@ class LocalAlarmStorageService {
   Future<bool> _saveAllAlarms(List<LocalAlarm> alarms) async {
     try {
       await initialize();
-      
+
+      print('💾 전체 알람 저장 시작 (${alarms.length}개):');
+      for (final alarm in alarms) {
+        print('  - ID: ${alarm.id}, type: ${alarm.type}, backendAlarmId: ${alarm.backendAlarmId}');
+      }
+
       final alarmsJson = jsonEncode(alarms.map((alarm) => alarm.toJson()).toList());
+      print('💾 JSON 저장: ${alarmsJson.substring(0, alarmsJson.length > 200 ? 200 : alarmsJson.length)}...');
       await _prefs!.setString(_alarmsKey, alarmsJson);
-      
+
+      print('✅ 알람 저장 완료');
       return true;
     } catch (e) {
       print('알람 저장 내부 오류: $e');

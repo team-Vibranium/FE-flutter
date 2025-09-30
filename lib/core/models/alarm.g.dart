@@ -14,6 +14,7 @@ Alarm _$AlarmFromJson(Map<String, dynamic> json) => Alarm(
   isEnabled: json['isEnabled'] as bool,
   tag: json['tag'] as String,
   successRate: (json['successRate'] as num).toInt(),
+  backendAlarmId: (json['backendAlarmId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$AlarmToJson(Alarm instance) => <String, dynamic>{
@@ -24,6 +25,7 @@ Map<String, dynamic> _$AlarmToJson(Alarm instance) => <String, dynamic>{
   'isEnabled': instance.isEnabled,
   'tag': instance.tag,
   'successRate': instance.successRate,
+  'backendAlarmId': instance.backendAlarmId,
 };
 
 const _$AlarmTypeEnumMap = {AlarmType.normal: 'NORMAL', AlarmType.call: 'CALL'};

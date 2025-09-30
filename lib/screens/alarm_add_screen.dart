@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'sound_selection_screen.dart';
 import '../core/services/local_alarm_service.dart';
+import '../core/services/base_api_service.dart';
+import 'package:dio/dio.dart';
 
 class AlarmAddScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? alarmData;
@@ -887,19 +889,27 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
 
   Future<void> _saveAlarm() async {
     try {
-      // 모든 알람을 일반 알람 시스템으로 저장 (전화알람도 포함)
-      await _saveLocalAlarm();
+      int? backendAlarmId;
+      
+      // 전화 알람인 경우 백엔드에 먼저 등록
+      if (_selectedAlarmType == '전화알람') {
+        backendAlarmId = await _savePhoneAlarmToBackend();
+      }
+      
+      // 모든 알람을 로컬 알람 시스템으로 저장
+      await _saveLocalAlarm(backendAlarmId: backendAlarmId);
 
       // onAlarmSaved 콜백 호출
       if (widget.onAlarmSaved != null) {
         final alarmData = {
-          'id': widget.alarmData?['id'],
+          'id': backendAlarmId ?? widget.alarmData?['id'],
           'time': '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
           'days': _selectedDays,
           'type': _selectedAlarmType, // '전화알람' 또는 '일반알람'
           'isEnabled': true,
           'tag': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
           'title': _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람',
+          'backendAlarmId': backendAlarmId, // 백엔드 알람 ID 추가
         };
         widget.onAlarmSaved!(alarmData);
       }
@@ -924,8 +934,188 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
   }
 
 
+  /// 전화 알람을 백엔드에 저장
+  Future<int> _savePhoneAlarmToBackend() async {
+    try {
+      // Dio 인스턴스 생성
+      final dio = Dio();
+      dio.options.baseUrl = 'https://prod.proproject.my';
+      
+      // 인증 토큰 가져오기
+      final baseApi = BaseApiService();
+      final token = baseApi.accessToken;
+      
+      dio.options.headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      
+      // 알람 시간 계산 (다음 알람 시간)
+      final now = DateTime.now();
+      final alarmTime = DateTime(now.year, now.month, now.day, _selectedTime.hour, _selectedTime.minute);
+
+      // 이미 지났으면 내일로 설정
+      final targetTimeLocal = alarmTime.isBefore(now) ? alarmTime.add(const Duration(days: 1)) : alarmTime;
+
+      // UTC로 변환
+      final targetTime = targetTimeLocal.toUtc();
+      
+      // 지시사항 생성
+      final instructions = _buildInstructions();
+      
+      print('📞 전화 알람 백엔드 등록 시작...');
+      print('  - 시간: ${targetTime.toIso8601String()}');
+      print('  - 지시사항: $instructions');
+      print('  - 음성: $_selectedVoice');
+      print('  - 토큰: ${token != null ? "있음" : "없음"}');
+      
+      final response = await dio.post('/api/alarms', data: {
+        'alarmTime': targetTime.toIso8601String(),
+        'instructions': instructions,
+        'voice': _selectedVoice,
+      });
+
+      print('📄 응답 상태 코드: ${response.statusCode}');
+      print('📄 응답 본문: ${response.data}');
+
+      if (response.statusCode == 201) {
+        print('📄 전체 응답 데이터: ${response.data}');
+        print('📄 응답 데이터 타입: ${response.data.runtimeType}');
+        
+        final responseData = response.data as Map<String, dynamic>;
+        print('📄 responseData: $responseData');
+        print('📄 responseData 키들: ${responseData.keys.toList()}');
+        
+        // 응답 구조 확인
+        if (responseData.containsKey('data')) {
+          final alarmData = responseData['data'] as Map<String, dynamic>;
+          print('📄 alarmData: $alarmData');
+          print('📄 alarmData 키들: ${alarmData.keys.toList()}');
+          
+          // ID 필드 확인 - 백엔드는 alarmId 필드로 ID를 제공
+          int? alarmId;
+          
+          // 1. data.alarmId 체크 (백엔드 응답 구조에 맞춤)
+          if (alarmData.containsKey('alarmId')) {
+            final idValue = alarmData['alarmId'];
+            print('📄 alarmId 필드 값: $idValue (타입: ${idValue.runtimeType})');
+            
+            if (idValue is int) {
+              alarmId = idValue;
+            } else if (idValue is String) {
+              alarmId = int.tryParse(idValue);
+            } else if (idValue is num) {
+              alarmId = idValue.toInt();
+            }
+          }
+          
+          // 2. data.id 체크 (fallback)
+          if (alarmId == null && alarmData.containsKey('id')) {
+            final idValue = alarmData['id'];
+            print('📄 id 필드 값: $idValue (타입: ${idValue.runtimeType})');
+            
+            if (idValue is int) {
+              alarmId = idValue;
+            } else if (idValue is String) {
+              alarmId = int.tryParse(idValue);
+            } else if (idValue is num) {
+              alarmId = idValue.toInt();
+            }
+          }
+          
+          if (alarmId != null) {
+            print('✅ 전화 알람 백엔드 등록 완료: ID $alarmId');
+            return alarmId;
+          } else {
+            print('❌ 알람 ID를 찾을 수 없습니다. 사용 가능한 필드: ${alarmData.keys}');
+            print('❌ 각 필드의 값들:');
+            alarmData.forEach((key, value) {
+              print('  - $key: $value (${value.runtimeType})');
+            });
+            
+            // ID가 없으면 임시 ID 생성 (로컬 알람 ID 사용)
+            final tempId = DateTime.now().millisecondsSinceEpoch % 1000000;
+            print('⚠️ 임시 ID 생성: $tempId');
+            return tempId;
+          }
+        } else {
+          print('❌ 응답에 data 필드가 없습니다. 사용 가능한 필드: ${responseData.keys}');
+          print('❌ 전체 응답 구조:');
+          responseData.forEach((key, value) {
+            print('  - $key: $value (${value.runtimeType})');
+          });
+          throw Exception('응답에 data 필드가 없습니다');
+        }
+      } else if (response.statusCode == 409) {
+        // 409 Conflict: 이미 같은 시간에 알람이 존재
+        print('⚠️ 같은 시간에 알람이 이미 존재합니다. 기존 알람을 조회합니다.');
+        return await _findExistingAlarm(dio, targetTime);
+      } else {
+        print('❌ 전화 알람 등록 실패: ${response.statusCode}');
+        print('❌ 응답 내용: ${response.data}');
+        throw Exception('전화 알람 등록 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ 전화 알람 백엔드 등록 오류: $e');
+      if (e is DioException && e.response != null) {
+        print('❌ 에러 상태 코드: ${e.response?.statusCode}');
+        print('❌ 에러 응답 본문: ${e.response?.data}');
+      }
+      rethrow;
+    }
+  }
+
+  /// 기존 알람 찾기 (409 Conflict 시)
+  Future<int> _findExistingAlarm(Dio dio, DateTime targetTime) async {
+    try {
+      print('🔍 기존 알람 조회 중...');
+      
+      // 사용자의 모든 알람 조회
+      final response = await dio.get('/api/alarms');
+      
+      if (response.statusCode == 200) {
+        final alarms = response.data['data'] as List<dynamic>;
+        
+        // 같은 시간의 알람 찾기
+        for (final alarm in alarms) {
+          final alarmData = alarm as Map<String, dynamic>;
+          final alarmTimeStr = alarmData['alarmTime'] as String?;
+          
+          if (alarmTimeStr != null) {
+            final alarmTime = DateTime.parse(alarmTimeStr);
+            // 시간만 비교 (분 단위까지)
+            if (alarmTime.hour == targetTime.hour && alarmTime.minute == targetTime.minute) {
+              final alarmId = alarmData['id'] as int?;
+              if (alarmId != null) {
+                print('✅ 기존 알람 발견: ID $alarmId');
+                return alarmId;
+              }
+            }
+          }
+        }
+        
+        print('❌ 같은 시간의 알람을 찾을 수 없습니다');
+        throw Exception('같은 시간의 알람을 찾을 수 없습니다');
+      } else {
+        print('❌ 알람 목록 조회 실패: ${response.statusCode}');
+        throw Exception('알람 목록 조회 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ 기존 알람 조회 오류: $e');
+      rethrow;
+    }
+  }
+
+  /// 지시사항 생성
+  String _buildInstructions() {
+    final title = _alarmTitleController.text.isNotEmpty ? _alarmTitleController.text : '알람';
+    final situation = _situationController.text.isNotEmpty ? _situationController.text : '일상적인 상황';
+    
+    return '${_selectedConcept}한 톤으로 $title을 깨워주세요. 상황: $situation. 사용자와 자연스러운 대화를 나누며 기상하도록 도와주세요.';
+  }
+
   /// 일반 로컬 알람 저장
-  Future<void> _saveLocalAlarm() async {
+  Future<void> _saveLocalAlarm({int? backendAlarmId}) async {
     final service = LocalAlarmService.instance;
 
     // 서비스 초기화
@@ -954,6 +1144,7 @@ class _AlarmAddScreenState extends ConsumerState<AlarmAddScreen> {
       label: title,
       isEnabled: true,
       type: _selectedAlarmType, // '전화알람' 또는 '일반알람'
+      backendAlarmId: backendAlarmId, // 백엔드 알람 ID 전달
     );
     print('알람 저장 완료: $title');
   }

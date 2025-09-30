@@ -22,16 +22,19 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void navigateToAlarmScreen(String payload) {
   print('🔔 navigateToAlarmScreen 호출됨');
   print('📦 payload: $payload');
-  
+
   try {
     final data = jsonDecode(payload);
     final alarmType = data['alarmType'] ?? '일반알람';
     final title = data['title'] ?? '알람';
     final alarmId = data['alarmId'];
-    
-    print('🔔 알림 데이터 파싱 성공 - 알람 화면으로 이동: $alarmType');
+
+    print('🔔 알림 데이터 파싱 성공:');
+    print('  - alarmType: $alarmType');
+    print('  - title: $title');
+    print('  - alarmId: $alarmId (백엔드 ID 또는 로컬 ID)');
     print('🗝️ navigatorKey.currentState: ${navigatorKey.currentState}');
-    
+
     if (navigatorKey.currentState != null) {
       navigatorKey.currentState!.pushNamed(
         '/alarm_ring',
@@ -39,7 +42,8 @@ void navigateToAlarmScreen(String payload) {
           'alarmType': alarmType,
           'alarmTime': '지금',
           'title': title,
-          'alarmId': alarmId,
+          'alarmId': alarmId,  // 백엔드 ID가 이미 올바르게 전달됨
+          // alarm 객체는 AlarmRingScreen에서 필요하면 백엔드 API로 조회
         },
       );
       print('✅ 네비게이션 pushNamed 호출 완료');

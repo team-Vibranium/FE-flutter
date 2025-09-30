@@ -59,6 +59,7 @@ class LocalAlarmService {
     String? label,
     bool isEnabled = true,
     String? type,
+    int? backendAlarmId, // 백엔드 알람 ID 추가
   }) async {
     try {
       final now = DateTime.now();
@@ -77,7 +78,10 @@ class LocalAlarmService {
         updatedAt: now,
         label: label,
         type: type,
+        backendAlarmId: backendAlarmId,
       );
+
+      print('🆕 로컬 알람 생성: ID=${alarm.id}, type=$type, backendAlarmId=$backendAlarmId');
       
       // 저장소에 저장
       final saveResult = await _storageService.saveAlarm(alarm);
